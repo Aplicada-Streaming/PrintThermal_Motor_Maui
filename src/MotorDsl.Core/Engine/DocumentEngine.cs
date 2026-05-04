@@ -136,6 +136,85 @@ public class DocumentEngine : IDocumentEngine
         }
     }
 
+    public RenderResult Render(string integratedJson, DeviceProfile profile)
+    {
+        try
+        {
+            // 1. Validate template DSL (in integrated mode the validator
+            //    enforces no loops/conditionals/placeholders).
+            var warnings = new List<string>();
+            if (_templateValidator != null)
+            {
+                var templateValidation = _templateValidator.ValidateTemplate(integratedJson);
+                if (templateValidation.Errors.Any(e => e.Severity == ValidationSeverity.Error))
+                {
+                    var errorResult = new RenderResult(profile.RenderTarget);
+                    foreach (var e in templateValidation.Errors.Where(e => e.Severity == ValidationSeverity.Error))
+                        errorResult.AddError($"TemplateValidation: [{e.Type}] {e.Field} — {e.Message}");
+                    errorResult.Output = "";
+                    return errorResult;
+                }
+                foreach (var w in templateValidation.Errors.Where(e => e.Severity == ValidationSeverity.Warning))
+                    warnings.Add($"TemplateValidation: [{w.Type}] {w.Field} — {w.Message}");
+            }
+
+            // 2. Parse
+            var template = _parser.Parse(integratedJson);
+
+            // 3. Defensive guard: this overload only accepts integrated documents.
+            if (!string.Equals(template.Format, DocumentTemplate.FormatIntegrated, StringComparison.OrdinalIgnoreCase))
+            {
+                var errorResult = new RenderResult(profile.RenderTarget);
+                errorResult.AddError(
+                    $"Render(json, profile) only accepts integrated documents (format='{DocumentTemplate.FormatIntegrated}'). " +
+                    $"Got format='{template.Format}'. Use Render(json, data, profile) for classic templates.");
+                errorResult.Output = "";
+                return errorResult;
+            }
+
+            // 4. Profile validation
+            if (_profileValidator != null)
+            {
+                var profileValidation = _profileValidator.ValidateProfile(profile);
+                if (!profileValidation.IsValid)
+                {
+                    var errorResult = new RenderResult(profile.RenderTarget);
+                    foreach (var e in profileValidation.Errors.Where(e => e.Severity == ValidationSeverity.Error))
+                        errorResult.AddError($"ProfileValidation: [{e.Type}] {e.Field} — {e.Message}");
+                    errorResult.Output = "";
+                    return errorResult;
+                }
+            }
+
+            // 5. SKIP Evaluate — the AST is already resolved. Wrap it in EvaluatedDocument as-is.
+            var evaluated = new EvaluatedDocument
+            {
+                Id = template.Id,
+                Version = template.Version,
+                Root = template.Root
+            };
+
+            // 6. Layout + Render (identical to the classic overload from this point).
+            var layouted = _layoutEngine.ApplyLayout(evaluated, profile);
+            var renderer = GetRenderer(profile.RenderTarget);
+            var renderResult = renderer.Render(layouted, profile);
+
+            foreach (var w in layouted.Warnings)
+                renderResult.AddWarning(w);
+            foreach (var w in warnings)
+                renderResult.AddWarning(w);
+
+            return renderResult;
+        }
+        catch (Exception ex)
+        {
+            var result = new RenderResult(profile.RenderTarget);
+            result.AddError($"Render failed: {ex.Message}");
+            result.Output = "";
+            return result;
+        }
+    }
+
     public LayoutedDocument RenderLayout(string templateDsl, object data, DeviceProfile profile)
     {
         // TK-51: Validate template DSL

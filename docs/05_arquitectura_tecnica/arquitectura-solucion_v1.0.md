@@ -52,24 +52,39 @@ Principios clave:
 
 ## 4. Visión de alto nivel
 
+El motor admite dos modalidades de entrada que comparten todas las etapas posteriores al Evaluator. La bifurcación ocurre justo después del Parser, según el campo `format` del documento JSON.
+
 ```text
-[Plantilla DSL]      [Datos]
-        │              │
-        └──────┬───────┘
-               ▼
-        [Parser DSL]
-               ▼
-     [Modelo Abstracto]
-               ▼
-        [Motor de Layout]
-               ▼
-   ┌───────────┼───────────┐
-   ▼           ▼           ▼
-[ESC/POS]    [UI]       [Text]
-                 │
-                 ▼
-              [PDF*]
-````
+[Plantilla DSL + Datos]      [Documento Integrado]
+   (format: "template")        (format: "integrated")
+            │                          │
+            ▼                          ▼
+                  [Parser DSL]
+                         ▼
+                  [Modelo Abstracto (AST)]
+            │                          │
+            ▼                          ▼
+        [Evaluator]              (skip Evaluator —
+   (resuelve {{}}, loops,         AST ya resuelto)
+   conditionals)
+            └──────────┬──────────────┘
+                       ▼
+                  [Motor de Layout]
+                       ▼
+            ┌──────────┼──────────┐
+            ▼          ▼          ▼
+        [ESC/POS]    [UI]       [Text]
+                       │
+                       ▼
+                     [PDF*]
+```
+
+**Bifurcación del pipeline**
+
+* **Modo clásico** (`format: "template"` o ausente — default): pipeline completo de 4 etapas. Es la entrada histórica del motor y mantiene compatibilidad total con consumidores existentes.
+* **Modo integrado** (`format: "integrated"`): el JSON ya viene con todos los valores resueltos. El motor saltea la etapa de Evaluate; las etapas de Layout y Render no distinguen el origen del AST.
+
+Los renderers, los validators de profile y el modelo intermedio `LayoutedDocument` son agnósticos al modo. Por diseño, cualquier extensión (renderers custom, providers de profiles) se beneficia automáticamente de ambas modalidades.
 
 ---
 

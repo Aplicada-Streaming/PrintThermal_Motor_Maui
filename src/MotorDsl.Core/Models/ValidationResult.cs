@@ -35,7 +35,13 @@ public enum ValidationErrorType
     MissingRequiredField,
 
     /// <summary>A node type is not recognized by the engine.</summary>
-    UnknownNodeType
+    UnknownNodeType,
+
+    /// <summary>A node type that is not supported in the integrated format (e.g., loop or conditional).</summary>
+    UnsupportedInIntegratedFormat,
+
+    /// <summary>An unresolved <c>{{placeholder}}</c> was found in an integrated document.</summary>
+    UnresolvedPlaceholder
 }
 
 /// <summary>

@@ -541,6 +541,149 @@ Asegurar eficiencia del motor.
 
 ---
 
+# ÉPICA 12 — Formato de Documento Integrado
+
+## OBJETIVO
+
+Incorporar una segunda modalidad de entrada al motor donde el JSON ya viene con todos los datos resueltos (sin placeholders, sin loops, sin conditionals). Coexiste con el formato clásico sin romper compatibilidad.
+
+---
+
+### BT-100 — Agregar campo `Format` a `DocumentTemplate`
+
+- **Tipo:** Core
+- **Prioridad:** Alta
+- **Fuente:** definicion del formato integrado
+
+**Descripción**
+
+Agregar la propiedad `string Format` con default `"template"` y constantes `FormatTemplate`/`FormatIntegrated`. Backward compatible.
+
+**Criterio de aceptación**
+
+* Default `"template"` — los tests existentes no cambian.
+* `DslParser` setea `Format` desde el JSON raíz.
+
+---
+
+### BT-101 — Nuevo overload `IDocumentEngine.Render(string, DeviceProfile)`
+
+- **Tipo:** Core
+- **Prioridad:** Alta
+- **Fuente:** contratos-del-motor_v1.0.md
+
+**Descripción**
+
+Implementar el overload que ejecuta Parse → Validate → Layout → Render (sin Evaluate). Defensa en profundidad: rechaza JSON con `format` distinto a `"integrated"`.
+
+**Criterio de aceptación**
+
+* Nuevo método en `IDocumentEngine`.
+* `DocumentEngine` lo implementa sin tocar los overloads existentes.
+* Test que verifica que el `IEvaluator` no es invocado.
+
+---
+
+### BT-102 — Adaptar `DslParser` al formato integrado
+
+- **Tipo:** Parser
+- **Prioridad:** Alta
+
+**Descripción**
+
+Detectar `"format": "integrated"` y mapear `value` → `TextNode.Text`. Rechazar nodos `loop` y `conditional` con `ArgumentException` clara.
+
+**Criterio de aceptación**
+
+* `Parse()` setea `template.Format` correctamente.
+* En modo integrado, `value` se lee como texto resuelto.
+* Loops/conditionals lanzan excepción.
+
+---
+
+### BT-103 — Adaptar `TemplateValidator` al formato integrado
+
+- **Tipo:** Validation
+- **Prioridad:** Alta
+
+**Descripción**
+
+Cuando `format == "integrated"`:
+- Reportar `UnsupportedInIntegratedFormat` para `loop`/`conditional`.
+- Reportar `UnresolvedPlaceholder` para `value` o `source` con `{{...}}`.
+- Reportar `InvalidSyntax` para valores de `format` desconocidos.
+
+**Criterio de aceptación**
+
+* Nuevos enum values: `UnsupportedInIntegratedFormat`, `UnresolvedPlaceholder`.
+* Validación clásica sin cambios.
+
+---
+
+### BT-104 — Tests del formato integrado
+
+- **Tipo:** Testing
+- **Prioridad:** Alta
+
+**Descripción**
+
+Cobertura completa del formato integrado:
+
+* `IntegratedFormatParserTests` (~10 tests)
+* `IntegratedFormatValidatorTests` (~7 tests)
+* `IntegratedFormatEngineTests` (~5 tests)
+* `IntegratedFormatIntegrationTests` (~4 tests, incluyendo equivalencia con flujo clásico)
+
+**Criterio de aceptación**
+
+* Todos los tests pasan.
+* Los 185 tests existentes siguen verdes.
+
+---
+
+### BT-105 — Sample app `MotorDsl.Integrated.MultaApp`
+
+- **Tipo:** Sample
+- **Prioridad:** Media
+
+**Descripción**
+
+Clon de `MotorDsl.MultaApp` con un único template en formato integrado (`MultaIntegratedDsl.Document`). Demuestra el uso del nuevo overload en MAUI.
+
+**Criterio de aceptación**
+
+* Compila para Android e iOS.
+* Botones Vista Previa / Imprimir / Ver PDF funcionando.
+* Registrada en `PrintThermalDriver.slnx`.
+
+---
+
+### BT-106 — Documentación del formato integrado
+
+- **Tipo:** Documentación
+- **Prioridad:** Media
+
+**Descripción**
+
+Actualizar:
+
+* `docs/10_developer_guide/formato-dsl-templates.md` — sección "Formato Integrado"
+* `docs/05_arquitectura_tecnica/arquitectura-solucion_v1.0.md` — diagrama
+* `docs/05_arquitectura_tecnica/flujo-ejecucion-motor_v1.0.md` — flujo alternativo
+* `docs/05_arquitectura_tecnica/contratos-del-motor_v1.0.md` — overload + Format
+* `docs/05_arquitectura_tecnica/extensibilidad-motor_v1.0.md` — compatibilidad
+* `docs/05_arquitectura_tecnica/modelo-datos-logico_v1.0.md` — campo Format
+* `docs/05_arquitectura_tecnica/modelo-logico-de-ejecucion_v1.0.md` — bifurcación
+* `docs/10_developer_guide/guia-integracion-maui.md` — ejemplo C#
+* `docs/11_examples/README.md` — entrada nueva
+* `docs/11_examples/ejemplo-03-multa-integrada.md` — doc del sample
+
+**Criterio de aceptación**
+
+* Cada documento referencia correctamente el nuevo overload y la modalidad.
+
+---
+
 # 10. Definición de Done (DoD)
 
 Una tarea se considera completa cuando:
@@ -556,8 +699,9 @@ Una tarea se considera completa cuando:
 
 # 11. Historial de versiones
 
-| Versión | Fecha      | Autor          | Cambios         |
-| ------- | ---------- | -------------- | --------------- |
-| 1.0     | 2026-03-28 | Equipo Técnico | Backlog inicial |
+| Versión | Fecha      | Autor          | Cambios                                                  |
+| ------- | ---------- | -------------- | -------------------------------------------------------- |
+| 1.0     | 2026-03-28 | Equipo Técnico | Backlog inicial                                          |
+| 1.1     | 2026-05-04 | Equipo Técnico | Épica 12 — Formato de Documento Integrado (BT-100..106)  |
 
 ---

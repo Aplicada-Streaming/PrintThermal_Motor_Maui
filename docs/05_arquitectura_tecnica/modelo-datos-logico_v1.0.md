@@ -67,12 +67,16 @@ Representa una plantilla completa procesada desde DSL.
 | Version | string | No | Versión del documento |
 | Root | DocumentNode | No | Nodo raíz del árbol |
 | Metadata | Dictionary | Sí | Información adicional |
+| Format | string | No | Modalidad del documento. Default: `"template"`. Alternativa: `"integrated"`. |
 
 ### Reglas
 
-- Root siempre debe existir  
-- Metadata es opcional y extensible  
-- Version permite control de compatibilidad  
+- Root siempre debe existir
+- Metadata es opcional y extensible
+- Version permite control de compatibilidad
+- Format discrimina la modalidad de procesamiento:
+  - `"template"`: pipeline completo (Parse → Validate → Evaluate → Layout → Render). El AST contiene `{{placeholders}}`, `loop` y/o `conditional` que se resuelven en la etapa de Evaluate.
+  - `"integrated"`: pipeline simplificado (Parse → Validate → Layout → Render). El AST ya está resuelto; la etapa de Evaluate se omite. No se permiten nodos `loop` ni `conditional`, y los `value`/`source` no pueden contener `{{...}}`.
 
 ---
 

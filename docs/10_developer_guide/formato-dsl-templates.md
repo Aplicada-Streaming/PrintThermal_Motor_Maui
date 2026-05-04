@@ -584,3 +584,108 @@ El nodo `root` puede ser cualquier tipo de nodo válido, pero por convención es
 | Loop sin datos | `source` apunta a un campo inexistente | Verificar que los datos contengan el array referenciado |
 | Binding vacío | `{{}}` sin contenido | Escribir la ruta completa: `{{campo}}` |
 | JSON inválido | Error de sintaxis en el template | Validar con un linter JSON antes de cargar |
+
+---
+
+## 9. Formato Integrado
+
+El motor admite una segunda modalidad de entrada llamada **formato integrado**: el JSON ya viene con todos los datos resueltos, sin `{{placeholders}}`, sin `loop` y sin `conditional`. Es útil cuando el documento ya se construyó completo en la app consumidora (por ejemplo, después de una transformación server-side) y solo falta layout + render.
+
+### 9.1 Discriminador y firma del motor
+
+El campo `format` en la raíz del JSON discrimina entre las dos modalidades:
+
+| Valor | Pipeline interno | Llamada al motor |
+|---|---|---|
+| `"template"` (default) o ausente | Parse → Validate → **Evaluate** → Layout → Render | `engine.Render(json, data, profile)` |
+| `"integrated"` | Parse → Validate → Layout → Render (sin Evaluate) | `engine.Render(json, profile)` |
+
+Ambas modalidades coexisten sin afectarse: omitir el campo `format` mantiene el comportamiento histórico.
+
+### 9.2 Diferencias respecto al formato clásico
+
+| Aspecto | Clásico (`template`) | Integrado (`integrated`) |
+|---|---|---|
+| Campo `format` raíz | ausente o `"template"` | `"integrated"` |
+| Texto en `text` | `{ "type":"text", "text":"Hola {{nombre}}" }` | `{ "type":"text", "value":"Hola Juan" }` |
+| Nodos `loop` | permitidos | **prohibidos** (ya expandidos como N `container`) |
+| Nodos `conditional` | permitidos | **prohibidos** (ya resueltos a la rama válida) |
+| `image.source` | `"https://api/qr/{{id}}"` | `"https://api/qr/2026-00123"` |
+| Diccionario de datos | requerido | no se usa |
+
+### 9.3 Validaciones específicas del modo integrado
+
+`TemplateValidator` aplica reglas adicionales cuando detecta `"format": "integrated"`:
+
+| Regla | Tipo de error | Severidad |
+|---|---|---|
+| Aparece un nodo `loop` o `conditional` | `UnsupportedInIntegratedFormat` | Error |
+| El `value` de un `text` contiene `{{...}}` | `UnresolvedPlaceholder` | Error |
+| El `source` de un `image` contiene `{{...}}` | `UnresolvedPlaceholder` | Error |
+| `format` tiene un valor distinto a `template` o `integrated` | `InvalidSyntax` | Error |
+
+### 9.4 Ejemplo de documento integrado
+
+```json
+{
+  "id": "acta-infraccion-001",
+  "version": "1.0",
+  "format": "integrated",
+  "root": {
+    "type": "container",
+    "layout": "vertical",
+    "children": [
+      {
+        "type": "image",
+        "source": "data:image/bmp;base64,Qk0+KQAAA...",
+        "imageType": "bitmap",
+        "width": 200,
+        "style": { "align": "center" }
+      },
+      {
+        "type": "text",
+        "value": "MUNICIPALIDAD DE EJEMPLO",
+        "style": { "align": "center", "bold": true }
+      },
+      { "type": "text", "value": "ACTA DE INFRACCIÓN N°: 2026-00123" },
+      { "type": "text", "value": "Fecha: 31/03/2026  Hora: 14:35" },
+      {
+        "type": "container",
+        "layout": "vertical",
+        "children": [
+          { "type": "text", "value": "Art. 77 inc. 2 - Exceso de velocidad" },
+          { "type": "text", "value": "Puntos: 3  Monto: $15000" }
+        ]
+      },
+      {
+        "type": "image",
+        "source": "https://multas.ejemplo.gob.ar/pago/2026-00123",
+        "imageType": "qrcode"
+      }
+    ]
+  }
+}
+```
+
+### 9.5 Uso en C#
+
+```csharp
+// Modo clásico — template + datos por separado
+var classicResult = engine.Render(jsonTemplate, data, profile);
+
+// Modo integrado — un solo string con todo resuelto
+var integratedResult = engine.Render(jsonIntegrated, profile);
+```
+
+Ambos producen un `RenderResult` equivalente (mismo `Output`, mismo `Target`, mismas `Warnings`/`Errors`). Los renderers (`EscPosRenderer`, `TextRenderer`, custom) no distinguen el origen del documento.
+
+### 9.6 Cuándo conviene cada modalidad
+
+| Escenario | Modalidad recomendada |
+|---|---|
+| Documento parametrizable con datos del usuario | Clásico |
+| Documento ya armado por un backend o un job batch | Integrado |
+| Templates reutilizables con bindings dinámicos | Clásico |
+| Snapshots inmutables (auditoría, reimpresión idéntica) | Integrado |
+| Lógica condicional o iteraciones declarativas | Clásico |
+| Producer-consumer con AST serializado entre servicios | Integrado |

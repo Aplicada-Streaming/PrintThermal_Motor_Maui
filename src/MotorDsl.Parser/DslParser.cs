@@ -7,9 +7,10 @@ namespace MotorDsl.Parser;
 /// <summary>
 /// Implementation of IDslParser using System.Text.Json.
 /// Parses DSL templates in JSON format into DocumentTemplate objects.
-/// 
+///
 /// Source: contratos-del-motor_v1.0.md (Section 7)
 /// Supports element types: text, container, conditional, loop, table, image
+/// Supports document formats: "template" (default, classic) and "integrated" (pre-resolved AST).
 /// </summary>
 public class DslParser : IDslParser
 {
@@ -21,6 +22,12 @@ public class DslParser : IDslParser
         "loop",
         "table",
         "image"
+    };
+
+    private static readonly HashSet<string> SupportedFormats = new(StringComparer.OrdinalIgnoreCase)
+    {
+        DocumentTemplate.FormatTemplate,
+        DocumentTemplate.FormatIntegrated
     };
 
     public DocumentTemplate Parse(string dsl)
@@ -51,11 +58,27 @@ public class DslParser : IDslParser
             if (string.IsNullOrEmpty(version))
                 throw new ArgumentException("'version' cannot be null or empty");
 
+            // Extract format (optional, defaults to "template")
+            var format = DocumentTemplate.FormatTemplate;
+            if (root.TryGetProperty("format", out var formatToken))
+            {
+                var formatValue = formatToken.ValueKind == JsonValueKind.String
+                    ? formatToken.GetString() ?? ""
+                    : "";
+
+                if (!SupportedFormats.Contains(formatValue))
+                    throw new ArgumentException(
+                        $"Unsupported 'format' value: '{formatValue}'. Expected '{DocumentTemplate.FormatTemplate}' or '{DocumentTemplate.FormatIntegrated}'.");
+
+                format = formatValue;
+            }
+
             // Extract root node (required)
             if (!root.TryGetProperty("root", out var rootNodeToken))
                 throw new ArgumentException("DSL must contain 'root' property");
 
-            var parsedRoot = ParseNode(rootNodeToken);
+            var isIntegrated = string.Equals(format, DocumentTemplate.FormatIntegrated, StringComparison.OrdinalIgnoreCase);
+            var parsedRoot = ParseNode(rootNodeToken, isIntegrated);
 
             // Extract metadata (optional)
             var metadata = new Dictionary<string, object>();
@@ -77,6 +100,7 @@ public class DslParser : IDslParser
 
             return new DocumentTemplate(id, version, parsedRoot)
             {
+                Format = format,
                 Metadata = metadata
             };
         }
@@ -86,7 +110,7 @@ public class DslParser : IDslParser
         }
     }
 
-    private DocumentNode ParseNode(JsonElement nodeToken)
+    private DocumentNode ParseNode(JsonElement nodeToken, bool isIntegrated)
     {
         if (nodeToken.ValueKind != JsonValueKind.Object)
             throw new ArgumentException("Node must be a JSON object");
@@ -101,23 +125,39 @@ public class DslParser : IDslParser
         if (!SupportedTypes.Contains(type))
             throw new ArgumentException($"Unsupported element type: '{type}'. Supported types are: {string.Join(", ", SupportedTypes)}");
 
+        if (isIntegrated && (type == "loop" || type == "conditional"))
+            throw new ArgumentException(
+                $"Node type '{type}' is not allowed in integrated format. Loops and conditionals must be pre-resolved by the producer.");
+
         return type switch
         {
-            "text" => ParseTextNode(nodeToken),
-            "container" => ParseContainerNode(nodeToken),
-            "conditional" => ParseConditionalNode(nodeToken),
-            "loop" => ParseLoopNode(nodeToken),
+            "text" => ParseTextNode(nodeToken, isIntegrated),
+            "container" => ParseContainerNode(nodeToken, isIntegrated),
+            "conditional" => ParseConditionalNode(nodeToken, isIntegrated),
+            "loop" => ParseLoopNode(nodeToken, isIntegrated),
             "table" => ParseTableNode(nodeToken),
             "image" => ParseImageNode(nodeToken),
             _ => throw new ArgumentException($"Unsupported element type: '{type}'")
         };
     }
 
-    private TextNode ParseTextNode(JsonElement nodeToken)
+    private TextNode ParseTextNode(JsonElement nodeToken, bool isIntegrated)
     {
-        var text = nodeToken.TryGetProperty("text", out var textToken)
-            ? textToken.GetString() ?? ""
-            : "";
+        // Integrated documents use "value" (already-resolved string).
+        // Classic templates use "text" (may contain {{placeholders}}).
+        string text;
+        if (isIntegrated)
+        {
+            text = nodeToken.TryGetProperty("value", out var valueToken)
+                ? valueToken.GetString() ?? ""
+                : "";
+        }
+        else
+        {
+            text = nodeToken.TryGetProperty("text", out var textToken)
+                ? textToken.GetString() ?? ""
+                : "";
+        }
 
         var bindPath = nodeToken.TryGetProperty("bindPath", out var bindToken)
             ? bindToken.GetString()
@@ -145,7 +185,7 @@ public class DslParser : IDslParser
         return node;
     }
 
-    private ContainerNode ParseContainerNode(JsonElement nodeToken)
+    private ContainerNode ParseContainerNode(JsonElement nodeToken, bool isIntegrated)
     {
         var layout = nodeToken.TryGetProperty("layout", out var layoutToken)
             ? layoutToken.GetString()
@@ -157,7 +197,7 @@ public class DslParser : IDslParser
         {
             foreach (var childToken in childrenToken.EnumerateArray())
             {
-                var childNode = ParseNode(childToken);
+                var childNode = ParseNode(childToken, isIntegrated);
                 container.AddChild(childNode);
             }
         }
@@ -165,24 +205,24 @@ public class DslParser : IDslParser
         return container;
     }
 
-    private ConditionalNode ParseConditionalNode(JsonElement nodeToken)
+    private ConditionalNode ParseConditionalNode(JsonElement nodeToken, bool isIntegrated)
     {
         var expression = nodeToken.TryGetProperty("expression", out var expToken)
             ? expToken.GetString() ?? ""
             : "";
 
         var trueBranch = nodeToken.TryGetProperty("trueBranch", out var trueToken)
-            ? ParseNode(trueToken)
+            ? ParseNode(trueToken, isIntegrated)
             : null;
 
         var falseBranch = nodeToken.TryGetProperty("falseBranch", out var falseToken)
-            ? ParseNode(falseToken)
+            ? ParseNode(falseToken, isIntegrated)
             : null;
 
         return new ConditionalNode(expression, trueBranch, falseBranch);
     }
 
-    private LoopNode ParseLoopNode(JsonElement nodeToken)
+    private LoopNode ParseLoopNode(JsonElement nodeToken, bool isIntegrated)
     {
         var source = nodeToken.TryGetProperty("source", out var srcToken)
             ? srcToken.GetString() ?? ""
@@ -193,7 +233,7 @@ public class DslParser : IDslParser
             : "";
 
         var body = nodeToken.TryGetProperty("body", out var bodyToken)
-            ? ParseNode(bodyToken)
+            ? ParseNode(bodyToken, isIntegrated)
             : null;
 
         return new LoopNode(source, itemAlias, body);

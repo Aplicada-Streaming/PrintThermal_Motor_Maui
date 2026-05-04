@@ -29,6 +29,17 @@ public interface IDocumentEngine
     RenderResult Render(DocumentTemplate template, object data, DeviceProfile profile);
 
     /// <summary>
+    /// Renders a document from an integrated DSL JSON string.
+    /// The JSON must declare <c>"format": "integrated"</c> and contain all values
+    /// already resolved (no placeholders, no loops, no conditionals).
+    /// Pipeline is simplified: Parse → Validate → Layout → Render (Evaluate is skipped).
+    /// </summary>
+    /// <param name="integratedJson">Integrated DSL document as JSON string</param>
+    /// <param name="profile">Device profile defining rendering constraints</param>
+    /// <returns>Render result with output and any warnings/errors</returns>
+    RenderResult Render(string integratedJson, DeviceProfile profile);
+
+    /// <summary>
     /// Executes Parse → Evaluate → Layout without rendering.
     /// Returns the LayoutedDocument for UI preview.
     /// Sprint 06 | TK-45

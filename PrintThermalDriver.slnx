@@ -1,6 +1,10 @@
 <Solution>
   <Folder Name="/samples/">
-    <Project Path="samples/MotorDsl.MultaApp.Nuget/MotorDsl.MultaApp.Nuget.csproj">
+    <Project Path="samples/MotorDsl.Integrated.MultaApp/MotorDsl.Integrated.MultaApp.csproj" />
+    <Project Path="samples/MotorDsl.Nuget.Integrated.MultaApp/MotorDsl.Nuget.Integrated.MultaApp.csproj">
+      <Deploy Solution="Debug|*" />
+    </Project>
+    <Project Path="samples/MotorDsl.Nuget.MultaApp/MotorDsl.Nuget.MultaApp.csproj">
       <Deploy Solution="Debug|*" />
     </Project>
     <Project Path="samples/MotorDsl.MultaApp/MotorDsl.MultaApp.csproj" />

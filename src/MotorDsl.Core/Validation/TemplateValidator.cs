@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using MotorDsl.Core.Contracts;
 using MotorDsl.Core.Models;
 
@@ -8,6 +9,7 @@ namespace MotorDsl.Core.Validation;
 /// Validates DSL template JSON for syntax, schema, node types and required properties.
 /// Sprint 07 | TK-50
 /// Supports: CU-14
+/// Extended to validate the integrated document format (Format = "integrated").
 /// </summary>
 public class TemplateValidator : ITemplateValidator
 {
@@ -15,6 +17,14 @@ public class TemplateValidator : ITemplateValidator
     {
         "text", "container", "conditional", "loop", "table", "image"
     };
+
+    private static readonly HashSet<string> ValidFormats = new(StringComparer.OrdinalIgnoreCase)
+    {
+        DocumentTemplate.FormatTemplate,
+        DocumentTemplate.FormatIntegrated
+    };
+
+    private static readonly Regex PlaceholderRegex = new(@"\{\{[^}]+\}\}", RegexOptions.Compiled);
 
     public ValidationResult ValidateTemplate(string dslJson)
     {
@@ -42,6 +52,29 @@ public class TemplateValidator : ITemplateValidator
         ValidateRequiredRootField(root, "id", result);
         ValidateRequiredRootField(root, "version", result);
 
+        // 3. Optional 'format' field — defaults to "template"
+        var format = DocumentTemplate.FormatTemplate;
+        if (root.TryGetProperty("format", out var formatToken))
+        {
+            var formatValue = formatToken.ValueKind == JsonValueKind.String
+                ? formatToken.GetString() ?? ""
+                : "";
+
+            if (!ValidFormats.Contains(formatValue))
+            {
+                result.Errors.Add(new ValidationError(
+                    "format", ValidationErrorType.InvalidSyntax,
+                    $"Unsupported 'format' value: '{formatValue}'. Expected '{DocumentTemplate.FormatTemplate}' or '{DocumentTemplate.FormatIntegrated}'.",
+                    "Template")
+                {
+                    Location = "root"
+                });
+                return result;
+            }
+
+            format = formatValue;
+        }
+
         if (!root.TryGetProperty("root", out var rootNode))
         {
             result.Errors.Add(new ValidationError(
@@ -52,8 +85,9 @@ public class TemplateValidator : ITemplateValidator
             return result;
         }
 
-        // 3. Validate nodes recursively
-        ValidateNode(rootNode, "root", result);
+        // 4. Validate nodes recursively (rules depend on the format)
+        var isIntegrated = string.Equals(format, DocumentTemplate.FormatIntegrated, StringComparison.OrdinalIgnoreCase);
+        ValidateNode(rootNode, "root", isIntegrated, result);
 
         return result;
     }
@@ -71,7 +105,7 @@ public class TemplateValidator : ITemplateValidator
         }
     }
 
-    private static void ValidateNode(JsonElement node, string path, ValidationResult result)
+    private static void ValidateNode(JsonElement node, string path, bool isIntegrated, ValidationResult result)
     {
         if (node.ValueKind != JsonValueKind.Object)
             return;
@@ -102,6 +136,20 @@ public class TemplateValidator : ITemplateValidator
             return;
         }
 
+        // In integrated format, loop and conditional nodes are not allowed
+        if (isIntegrated && (nodeType.Equals("loop", StringComparison.OrdinalIgnoreCase) ||
+                              nodeType.Equals("conditional", StringComparison.OrdinalIgnoreCase)))
+        {
+            result.Errors.Add(new ValidationError(
+                "type", ValidationErrorType.UnsupportedInIntegratedFormat,
+                $"Node type '{nodeType}' is not allowed in integrated format. Loops and conditionals must be pre-resolved by the producer.",
+                nodeType)
+            {
+                Location = path
+            });
+            return;
+        }
+
         // Validate required properties per node type
         switch (nodeType.ToLower())
         {
@@ -109,28 +157,25 @@ public class TemplateValidator : ITemplateValidator
                 ValidateRequiredNodeField(node, "source", nodeType, path, result);
                 ValidateRequiredNodeField(node, "itemAlias", nodeType, path, result);
                 ValidateRequiredNodeField(node, "body", nodeType, path, result);
-                // Recurse into body
                 if (node.TryGetProperty("body", out var loopBody))
-                    ValidateNode(loopBody, $"{path}.body", result);
+                    ValidateNode(loopBody, $"{path}.body", isIntegrated, result);
                 break;
 
             case "conditional":
                 ValidateRequiredNodeField(node, "expression", nodeType, path, result);
-                // Recurse into branches
                 if (node.TryGetProperty("trueBranch", out var trueBranch))
-                    ValidateNode(trueBranch, $"{path}.trueBranch", result);
+                    ValidateNode(trueBranch, $"{path}.trueBranch", isIntegrated, result);
                 if (node.TryGetProperty("falseBranch", out var falseBranch))
-                    ValidateNode(falseBranch, $"{path}.falseBranch", result);
+                    ValidateNode(falseBranch, $"{path}.falseBranch", isIntegrated, result);
                 break;
 
             case "container":
-                // Recurse into children
                 if (node.TryGetProperty("children", out var children) && children.ValueKind == JsonValueKind.Array)
                 {
                     int idx = 0;
                     foreach (var child in children.EnumerateArray())
                     {
-                        ValidateNode(child, $"{path}.children[{idx}]", result);
+                        ValidateNode(child, $"{path}.children[{idx}]", isIntegrated, result);
                         idx++;
                     }
                 }
@@ -138,9 +183,45 @@ public class TemplateValidator : ITemplateValidator
 
             case "image":
                 ValidateRequiredNodeField(node, "source", nodeType, path, result);
+                if (isIntegrated && node.TryGetProperty("source", out var srcToken) &&
+                    srcToken.ValueKind == JsonValueKind.String)
+                {
+                    var src = srcToken.GetString() ?? "";
+                    if (PlaceholderRegex.IsMatch(src))
+                    {
+                        result.Errors.Add(new ValidationError(
+                            "source", ValidationErrorType.UnresolvedPlaceholder,
+                            "Integrated documents must not contain '{{placeholder}}' tokens in image 'source'.",
+                            nodeType)
+                        {
+                            Location = path
+                        });
+                    }
+                }
                 break;
 
             case "text":
+                if (isIntegrated)
+                {
+                    // Integrated text nodes use 'value' (resolved string), not 'text' (placeholder source)
+                    if (node.TryGetProperty("value", out var valueToken) &&
+                        valueToken.ValueKind == JsonValueKind.String)
+                    {
+                        var value = valueToken.GetString() ?? "";
+                        if (PlaceholderRegex.IsMatch(value))
+                        {
+                            result.Errors.Add(new ValidationError(
+                                "value", ValidationErrorType.UnresolvedPlaceholder,
+                                "Integrated documents must not contain '{{placeholder}}' tokens in text 'value'.",
+                                nodeType)
+                            {
+                                Location = path
+                            });
+                        }
+                    }
+                }
+                break;
+
             case "table":
                 // No mandatory fields beyond "type"
                 break;

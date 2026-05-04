@@ -170,6 +170,47 @@ if (result.IsSuccessful)
 
 Ambos retornan `null` si `Output` no es `byte[]`.
 
+### Ejemplo — Render con formato integrado (sin diccionario de datos)
+
+Cuando el JSON ya viene con todos los valores resueltos (`"format": "integrated"`), se usa el overload simplificado `Render(json, profile)` — sin parámetro `data`. Útil cuando el documento se construyó previamente en un backend o un job batch.
+
+```csharp
+var integratedJson = """
+{
+  "id": "ticket-snapshot-001",
+  "version": "1.0",
+  "format": "integrated",
+  "root": {
+    "type": "container",
+    "layout": "vertical",
+    "children": [
+      { "type": "text", "value": "MI TIENDA",      "style": { "align": "center", "bold": true } },
+      { "type": "text", "value": "Cliente: Juan Pérez" },
+      { "type": "text", "value": "Total: $12.345" }
+    ]
+  }
+}
+""";
+
+var profile = new DeviceProfile("58mm", 32, "escpos");
+
+// Nota: este overload no recibe `data` — el JSON ya está resuelto.
+RenderResult result = _engine.Render(integratedJson, profile);
+
+if (result.IsSuccessful)
+{
+    byte[] bytes = (byte[])result.Output!;
+    await _printer.SendBytesAsync(bytes);
+}
+```
+
+| Aspecto | Modo clásico | Modo integrado |
+|---|---|---|
+| Llamada | `_engine.Render(json, data, profile)` | `_engine.Render(json, profile)` |
+| JSON de entrada | tiene `{{placeholders}}`, `loop`, `conditional` | tiene `value` resueltos, sin loops ni conditionals |
+| Diccionario de datos | requerido | no aplica |
+| Pipeline interno | Parse → Validate → **Evaluate** → Layout → Render | Parse → Validate → Layout → Render |
+
 ---
 
 ## 4. Enviar a impresora Bluetooth

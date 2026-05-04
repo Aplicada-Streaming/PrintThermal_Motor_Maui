@@ -6,11 +6,12 @@
 
 ## Índice de Ejemplos
 
-| #  | Proyecto                    | Nivel     | Descripción                                                              |
-|----|-----------------------------|-----------|--------------------------------------------------------------------------|
-| 01 | MotorDsl.SampleApp          | Básico    | Ticket simple — aprender la librería paso a paso                         |
-| 02 | MotorDsl.MultaApp           | Avanzado  | Multa de tránsito — todas las funcionalidades, via ProjectReference      |
-| 03 | MotorDsl.MultaApp.Nuget     | Avanzado  | Idem MultaApp — consume los paquetes NuGet publicados en nuget.org      |
+| #  | Proyecto                          | Nivel     | Descripción                                                                  |
+|----|-----------------------------------|-----------|------------------------------------------------------------------------------|
+| 01 | MotorDsl.SampleApp                | Básico    | Ticket simple — aprender la librería paso a paso                             |
+| 02 | MotorDsl.MultaApp                 | Avanzado  | Multa de tránsito (template + datos) — todas las funcionalidades clásicas   |
+| 03 | MotorDsl.Integrated.MultaApp      | Avanzado  | Multa de tránsito (formato integrado) — JSON pre-resuelto, sin Evaluate     |
+| 04 | MotorDsl.MultaApp.Nuget           | Avanzado  | Idem MultaApp — consume los paquetes NuGet publicados en nuget.org           |
 
 ---
 
@@ -94,7 +95,11 @@ dotnet build -f net10.0-android
 cd samples/MotorDsl.MultaApp
 dotnet build -f net10.0-android
 
-# Ejemplo 03 (via NuGet packages)
+# Ejemplo 03 (formato integrado)
+cd samples/MotorDsl.Integrated.MultaApp
+dotnet build -f net10.0-android
+
+# Ejemplo 04 (via NuGet packages)
 cd samples/MotorDsl.MultaApp.Nuget
 dotnet build -f net10.0-android
 ```
@@ -103,7 +108,55 @@ dotnet build -f net10.0-android
 
 ---
 
-## Ejemplo 03 — MotorDsl.MultaApp.Nuget
+## Ejemplo 03 — MotorDsl.Integrated.MultaApp
+
+**Ubicación:** `samples/MotorDsl.Integrated.MultaApp/`
+
+### Propósito
+
+Misma acta de infracción que el Ejemplo 02, pero usando el **formato integrado** del DSL (`"format": "integrated"`). Demuestra la modalidad alternativa de entrada del motor: el JSON ya viene con todos los datos resueltos, sin `{{placeholders}}`, sin `loop` y sin `conditional`. El consumidor llama a `engine.Render(json, profile)` — sin diccionario de datos.
+
+### Diferencia clave con MultaApp
+
+| Aspecto                | MotorDsl.MultaApp                    | MotorDsl.Integrated.MultaApp                  |
+|------------------------|--------------------------------------|-----------------------------------------------|
+| Modalidad DSL          | Template + Data separados            | JSON integrado (`"format": "integrated"`)     |
+| Templates registrados  | `MultaDsl` + `TicketSimpleDsl` + `ComprobanteDsl` | Único: `MultaIntegratedDsl.Document`          |
+| Llamada al motor       | `engine.Render(template, data, profile)` | `engine.Render(integratedJson, profile)`  |
+| Pipeline interno       | Parse → Validate → **Evaluate** → Layout → Render | Parse → Validate → Layout → Render            |
+| ApplicationId          | `com.motordsl.multaapp`              | `com.motordsl.integrated.multaapp`            |
+| Namespace              | `MotorDsl.MultaApp.*`                | `MotorDsl.Integrated.MultaApp.*`              |
+
+### Qué demuestra
+
+- Construcción de un JSON integrado completo desde C# (incluyendo logo y firma base64 embebidos)
+- Loop de infracciones expandido manualmente como N `container` concretos
+- Llamada al overload `IDocumentEngine.Render(string, DeviceProfile)` (sin `data`)
+- Coexistencia con renderers custom y rasterizer (las mismas implementaciones que `MultaApp`: `BitmapEscPosRenderer`, `PdfRenderer`, `SkiaSharpRasterizer`)
+- Validación específica del modo integrado (`TemplateValidator` rechaza placeholders residuales)
+
+### Estructura de archivos
+
+```
+samples/MotorDsl.Integrated.MultaApp/
+├── MotorDsl.Integrated.MultaApp.csproj
+├── MauiProgram.cs
+├── Templates/
+│   └── MultaIntegratedDsl.cs       ← un único string `Document` con el JSON integrado
+├── Pages/
+│   └── MainPage.xaml / .xaml.cs    ← llama engine.Render(json, profile)
+├── Renderers/                      ← idénticos a MultaApp (Project copy)
+├── Services/
+├── Controls/
+├── Platforms/
+└── Resources/
+```
+
+📄 Detalle: [`ejemplo-03-multa-integrada.md`](ejemplo-03-multa-integrada.md)
+
+---
+
+## Ejemplo 04 — MotorDsl.MultaApp.Nuget
 
 **Ubicación:** `samples/MotorDsl.MultaApp.Nuget/`
 

@@ -3,22 +3,31 @@
 ## Stack
 - .NET 10, MAUI, C#
 - Android + iOS
-- xUnit, 185 tests
+- xUnit, 212 tests (185 originales + 27 del formato integrado)
 
 ## Estructura del repositorio
 
 ```
 PrintThermalDriver.sln
 src/
-  MotorDsl.Core/         ← Parser, Evaluator, LayoutEngine, contratos
-  MotorDsl.Parser/       ← Parser JSON DSL → DocumentTemplate
-  MotorDsl.Rendering/    ← EscPosRenderer, TextRenderer
-  MotorDsl.Extensions/   ← DI, fluent API (AddMotorDslEngine)
-  MotorDsl.Tests/        ← 185 tests xUnit
+  MotorDsl.Core/                ← Parser, Evaluator, LayoutEngine, contratos
+  MotorDsl.Parser/              ← Parser JSON DSL → DocumentTemplate
+  MotorDsl.Rendering/           ← EscPosRenderer, TextRenderer
+  MotorDsl.Extensions/          ← DI, fluent API (AddMotorDslEngine)
+  MotorDsl.Tests/               ← 212 tests xUnit
 samples/
-  MotorDsl.SampleApp/    ← MAUI app (Android + iOS)
-  MotorDsl.MultaApp/     ← MAUI app con SkiaSharp (Android + iOS)
+  MotorDsl.SampleApp/             ← MAUI app básica (Android + iOS)
+  MotorDsl.MultaApp/              ← MAUI app — formato clásico (template + datos)
+  MotorDsl.Integrated.MultaApp/   ← MAUI app — formato integrado (JSON pre-resuelto)
+  MotorDsl.MultaApp.Nuget/        ← Idem MultaApp pero con PackageReference (NuGet)
 ```
+
+## Modalidades de entrada del motor
+
+`IDocumentEngine` admite dos modalidades, discriminadas por el campo `format` en el JSON raíz:
+
+- **Clásico** (`"format": "template"` o ausente) — `Render(json, data, profile)`. Pipeline completo Parse → Evaluate → Layout → Render.
+- **Integrado** (`"format": "integrated"`) — `Render(json, profile)`. Pipeline simplificado sin Evaluate. El AST ya viene resuelto: TextNodes usan `value` en lugar de `text`, no se permiten `loop` ni `conditional`, no debe haber `{{placeholders}}` en `value`/`source`.
 
 ## Cuando un workflow falla
 
@@ -39,7 +48,7 @@ samples/
 
 ### Error de tests
 - Proyecto: `PrintThermalDriver.sln`
-- Target: **185 tests, 0 errores**
+- Target: **212 tests, 0 errores**
 - Tests en: `src/MotorDsl.Tests/`
 - Comando: `dotnet test PrintThermalDriver.sln --verbosity minimal`
 

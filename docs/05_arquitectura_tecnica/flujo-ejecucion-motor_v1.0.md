@@ -336,10 +336,73 @@ Posibles mejoras futuras:
 
 ---
 
-## 21. Historial de versiones
+## 21. Flujo alternativo — Documento Integrado
 
-| Versión | Fecha      | Autor          | Cambios                 |
-| ------- | ---------- | -------------- | ----------------------- |
-| 1.0     | 2026-03-28 | Equipo Técnico | Flujo inicial del motor |
+### Descripción
+
+Cuando el JSON de entrada declara `"format": "integrated"`, el motor expone un overload simplificado:
+
+```csharp
+RenderResult Render(string integratedJson, DeviceProfile profile);
+```
+
+El AST llega ya resuelto: sin placeholders `{{...}}`, sin nodos `loop`, sin nodos `conditional`. La etapa de Evaluate es innecesaria y se omite.
+
+### Pipeline simplificado
+
+```text
+Documento Integrado JSON + DeviceProfile
+                ↓
+            IDocumentEngine
+                ↓
+       TemplateValidator
+       (modo "integrated":
+        prohíbe loops/conditionals,
+        rechaza placeholders residuales)
+                ↓
+            Parser DSL
+       (mapea "value" → TextNode.Text)
+                ↓
+       DocumentTemplate (AST resuelto)
+                ↓
+        ProfileValidator
+                ↓
+   (Evaluator NO se invoca — el AST ya está resuelto)
+                ↓
+            Layout Engine
+                ↓
+            Renderer Selection
+                ↓
+            Render Process
+                ↓
+             RenderResult
+```
+
+### Diferencias clave con el flujo clásico
+
+| Etapa | Flujo clásico | Flujo integrado |
+|---|---|---|
+| Validación template | reglas estándar | reglas estándar **+** prohíbe loops/conditionals **+** detecta placeholders residuales |
+| Parser | mapea `text` a `TextNode.Text` | mapea `value` a `TextNode.Text` |
+| DataValidator | aplica si está registrado | no se invoca (no hay datos) |
+| Evaluator | resuelve bindings, expande loops, evalúa conditionals | **se omite por completo** |
+| Layout / Render | sin cambios | sin cambios |
+
+### Garantía de equivalencia
+
+El `LayoutedDocument` que produce el flujo integrado es **estructuralmente idéntico** al que produce el flujo clásico cuando los datos resuelven a los mismos valores. Esta invariante está cubierta por el test `Pipeline_IntegratedVsClassic_ProduceIdenticalOutput`.
+
+### Cuándo se usa
+
+Apropiado cuando el productor del JSON ya conoce todos los valores y quiere evitar el costo de transportar template + diccionario por separado: snapshots de auditoría, reimpresiones, integraciones server-to-device donde el documento se arma server-side.
+
+---
+
+## 22. Historial de versiones
+
+| Versión | Fecha      | Autor          | Cambios                                                |
+| ------- | ---------- | -------------- | ------------------------------------------------------ |
+| 1.0     | 2026-03-28 | Equipo Técnico | Flujo inicial del motor                                |
+| 1.1     | 2026-05-04 | Equipo Técnico | Agregado flujo alternativo para documento integrado    |
 
 ---

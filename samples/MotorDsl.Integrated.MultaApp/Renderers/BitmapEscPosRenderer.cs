@@ -1,0 +1,157 @@
+using MotorDsl.Core.Contracts;
+using MotorDsl.Core.Models;
+using MotorDsl.Rendering;
+using System.Text;
+
+namespace MotorDsl.Integrated.MultaApp.Renderers;
+
+/// <summary>
+/// Renderer ESC/POS extendido con soporte de imágenes bitmap rasterizadas.
+/// Para nodos con is_bitmap=true, usa IBitmapRasterizer → GS v 0.
+/// Para el resto, delega al EscPosRenderer base.
+/// Sprint 08 | TK-64
+/// </summary>
+public class BitmapEscPosRenderer : IRenderer
+{
+    private readonly IBitmapRasterizer _rasterizer;
+    private readonly EscPosRenderer _baseRenderer = new();
+
+    public string Target => "escpos-bitmap";
+
+    public BitmapEscPosRenderer(IBitmapRasterizer rasterizer)
+    {
+        _rasterizer = rasterizer;
+    }
+
+    public RenderResult Render(LayoutedDocument document, DeviceProfile profile)
+    {
+        try
+        {
+            var result = new RenderResult(Target);
+            var buffer = new List<byte>();
+
+            buffer.AddRange(EscPosCommands.Init);
+
+            if (document?.Root != null)
+            {
+                var entries = document.NodeLayoutInfo
+                    .Where(kvp => !string.IsNullOrEmpty(kvp.Value.WrappedText))
+                    .OrderBy(kvp => kvp.Value.LineNumber)
+                    .ThenBy(kvp => kvp.Value.ColumnNumber);
+
+                foreach (var kvp in entries)
+                {
+                    var layoutInfo = kvp.Value;
+
+                    // Bitmap image → rasterize and emit GS v 0
+                    if (layoutInfo.DeviceMetadata.TryGetValue("is_bitmap", out var bmpFlag) && bmpFlag is true)
+                    {
+                        var source = layoutInfo.DeviceMetadata.TryGetValue("bitmap_source", out var src)
+                            ? src?.ToString() ?? ""
+                            : "";
+                        int maxW = Convert.ToInt32(profile.GetCapability("bitmap_max_width_px") ?? 384);
+                        var widthPixels = layoutInfo.DeviceMetadata.TryGetValue("bitmap_width", out var w)
+                            ? Math.Min(Convert.ToInt32(w) * 8, maxW)
+                            : maxW;
+
+                        System.Console.WriteLine($"[BMP-ESCPOS] source_len={source?.Length ?? 0}");
+                        System.Console.WriteLine($"[BMP-ESCPOS] source={source?.Substring(0, Math.Min(100, source?.Length ?? 0))}");
+
+                        var rasterized = _rasterizer.Rasterize(source, widthPixels);
+                        buffer.AddRange(EmitGsV0(rasterized));
+                        buffer.AddRange(EscPosCommands.LineFeed);
+                        continue;
+                    }
+
+                    // QR code
+                    if (layoutInfo.DeviceMetadata.TryGetValue("is_qr", out var qrFlag) && qrFlag is true)
+                    {
+                        var qrData = layoutInfo.DeviceMetadata["qr_data"]?.ToString() ?? "";
+                        buffer.AddRange(EmitQrCode(qrData));
+                        continue;
+                    }
+
+                    // Barcode
+                    if (layoutInfo.DeviceMetadata.TryGetValue("is_barcode", out var bcFlag) && bcFlag is true)
+                    {
+                        var barcodeData = layoutInfo.DeviceMetadata["barcode_data"]?.ToString() ?? "";
+                        buffer.AddRange(EmitBarcodeEan13(barcodeData));
+                        continue;
+                    }
+
+                    // Text — alignment, bold, content
+                    buffer.AddRange(GetAlignmentCommand(layoutInfo.Alignment));
+
+                    bool isBold = layoutInfo.DeviceMetadata.TryGetValue("bold", out var bv) && bv is true;
+                    if (isBold) buffer.AddRange(EscPosCommands.StyleBold);
+
+                    buffer.AddRange(Encoding.ASCII.GetBytes(layoutInfo.WrappedText));
+
+                    if (isBold) buffer.AddRange(EscPosCommands.StyleNormal);
+
+                    buffer.AddRange(EscPosCommands.LineFeed);
+                }
+            }
+
+            buffer.AddRange(EscPosCommands.CutFull);
+            result.Output = buffer.ToArray();
+            return result;
+        }
+        catch (Exception ex)
+        {
+            var result = new RenderResult(Target);
+            result.AddError($"BitmapEscPos rendering failed: {ex.Message}");
+            result.Output = Array.Empty<byte>();
+            return result;
+        }
+    }
+
+    /// <summary>
+    /// GS v 0 — Print raster bit image.
+    /// Command: 1D 76 30 00 xL xH yL yH [data]
+    /// </summary>
+    private static byte[] EmitGsV0(RasterizedImage raster)
+    {
+        var buffer = new List<byte>();
+        byte xL = (byte)(raster.WidthBytes & 0xFF);
+        byte xH = (byte)((raster.WidthBytes >> 8) & 0xFF);
+        byte yL = (byte)(raster.HeightDots & 0xFF);
+        byte yH = (byte)((raster.HeightDots >> 8) & 0xFF);
+
+        buffer.AddRange(new byte[] { 0x1D, 0x76, 0x30, 0x00, xL, xH, yL, yH });
+        buffer.AddRange(raster.Bits);
+        return buffer.ToArray();
+    }
+
+    private static byte[] EmitQrCode(string data)
+    {
+        var buffer = new List<byte>();
+        var urlBytes = Encoding.ASCII.GetBytes(data);
+        int len = urlBytes.Length + 3;
+        byte ll = (byte)(len & 0xFF);
+        byte lh = (byte)((len >> 8) & 0xFF);
+
+        buffer.AddRange(EscPosCommands.QrSetSize3);
+        buffer.AddRange(EscPosCommands.QrSetErrorM);
+        buffer.AddRange(new byte[] { 0x1D, 0x28, 0x6B, ll, lh, 0x31, 0x50, 0x30 });
+        buffer.AddRange(urlBytes);
+        buffer.AddRange(EscPosCommands.QrPrint);
+        return buffer.ToArray();
+    }
+
+    private static byte[] EmitBarcodeEan13(string data)
+    {
+        var buffer = new List<byte>();
+        buffer.AddRange(EscPosCommands.BarcodeEan13);
+        buffer.AddRange(Encoding.ASCII.GetBytes(data));
+        buffer.Add(0x00);
+        return buffer.ToArray();
+    }
+
+    private static byte[] GetAlignmentCommand(string? alignment) => alignment?.ToLower() switch
+    {
+        "center" => EscPosCommands.AlignCenter,
+        "right" => EscPosCommands.AlignRight,
+        _ => EscPosCommands.AlignLeft
+    };
+}

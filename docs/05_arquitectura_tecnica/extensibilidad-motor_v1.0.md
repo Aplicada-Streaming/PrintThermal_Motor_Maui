@@ -328,7 +328,20 @@ Posibles mejoras futuras:
 
 ---
 
-## 18. Relación con otros documentos
+## 18. Compatibilidad con el formato integrado
+
+El formato integrado (`DocumentTemplate.Format == "integrated"`) se beneficia transparentemente de los puntos de extensión existentes:
+
+* **Renderizadores custom**: cualquier `IRenderer` registrado vía `MotorDslBuilder.AddRenderer<T>()` funciona idénticamente para ambos formatos. El renderer recibe un `LayoutedDocument` y no inspecciona el `Format` del template original.
+* **Layout engines custom**: una implementación alternativa de `ILayoutEngine` se aplica de la misma forma a documentos clásicos e integrados — la única diferencia es que en el modo integrado no precede una etapa de Evaluate.
+* **Profile providers / validators**: el `IProfileValidator` se invoca antes del Layout en ambas modalidades, así que las reglas custom de capabilities siguen aplicando.
+* **Renderers de capability degradation** (CU-23): el `LayoutEngine` produce las mismas warnings (`QR degradado`, `Image degradado`, `Barcode degradado`) sin importar el formato de origen.
+
+El único punto de extensión que **no aplica** al modo integrado es el `IDataValidator`, ya que no hay diccionario de datos que validar. Si un consumidor necesita validar la estructura del AST integrado más allá de las reglas del `TemplateValidator`, puede registrar un validador adicional o componer reglas dentro del propio productor del JSON.
+
+---
+
+## 19. Relación con otros documentos
 
 Este documento se alinea con:
 
@@ -341,10 +354,11 @@ Este documento se alinea con:
 
 ---
 
-## 19. Historial de versiones
+## 20. Historial de versiones
 
-| Versión | Fecha      | Autor          | Cambios            |
-| ------- | ---------- | -------------- | ------------------ |
-| 1.0     | 2026-03-28 | Equipo Técnico | Definición inicial |
+| Versión | Fecha      | Autor          | Cambios                                                       |
+| ------- | ---------- | -------------- | ------------------------------------------------------------- |
+| 1.0     | 2026-03-28 | Equipo Técnico | Definición inicial                                            |
+| 1.1     | 2026-05-04 | Equipo Técnico | Compatibilidad de los puntos de extensión con formato integrado |
 
 ---

@@ -35,11 +35,21 @@ No cubre:
 
 ## 3. Visión general del modelo
 
-El motor sigue un pipeline en etapas:
+El motor sigue un pipeline en etapas. Existen dos rutas según el campo `format` del documento:
 
-1. Entrada DSL (string)
-2. Parsing → AST
+**Ruta clásica** (`format: "template"` — default):
+
+1. Entrada DSL (string) + datos
+2. Parsing → AST con placeholders/loops/conditionals
 3. Evaluación → Modelo resuelto
+4. Adaptación por perfil de dispositivo
+5. Renderizado → formato de salida
+
+**Ruta integrada** (`format: "integrated"`):
+
+1. Entrada DSL (string) — sin datos, AST ya resuelto
+2. Parsing → AST resuelto (sin placeholders/loops/conditionals)
+3. *(Evaluación se omite)*
 4. Adaptación por perfil de dispositivo
 5. Renderizado → formato de salida
 
@@ -53,7 +63,7 @@ Parser
 ↓
 AST (árbol de nodos)
 ↓
-Evaluator
+[Evaluator]   ← solo si format == "template"
 ↓
 Modelo Resuelto (datos + estructura)
 ↓
@@ -62,6 +72,8 @@ Renderer
 Output (ESC/POS / PDF / UI / Texto)
 
 ````
+
+> En la ruta integrada, el Parser produce un AST que ya cumple los invariantes del Modelo Resuelto: sin tokens `{{...}}` por interpretar, sin nodos `loop` por expandir, sin nodos `conditional` por evaluar. Por eso el Evaluator es innecesario y se omite.
 
 ---
 

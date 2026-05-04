@@ -52,13 +52,26 @@ MotorDsl
 ```csharp id="idocumentengine-001"
 public interface IDocumentEngine
 {
+    // Modo clásico — DSL crudo + datos
     RenderResult Render(
         string templateDsl,
         object data,
         DeviceProfile profile);
 
+    // Modo clásico — plantilla pre-parseada + datos
     RenderResult Render(
         DocumentTemplate template,
+        object data,
+        DeviceProfile profile);
+
+    // Modo integrado — JSON ya resuelto, sin diccionario de datos
+    RenderResult Render(
+        string integratedJson,
+        DeviceProfile profile);
+
+    // Pipeline parcial Parse → Evaluate → Layout (sin Render) — útil para preview UI
+    LayoutedDocument RenderLayout(
+        string templateDsl,
         object data,
         DeviceProfile profile);
 }
@@ -67,8 +80,19 @@ public interface IDocumentEngine
 **Responsabilidad**
 
 * Orquestar todo el pipeline de renderizado
-* Aceptar DSL o plantilla ya parseada
+* Aceptar DSL crudo, plantilla pre-parseada o JSON integrado
 * Devolver el resultado final renderizado
+
+**Cuándo usar cada overload**
+
+| Overload | Caso de uso |
+|---|---|
+| `Render(string, object, DeviceProfile)` | Caso general: el consumidor tiene un template DSL con `{{placeholders}}` y un diccionario de datos. |
+| `Render(DocumentTemplate, object, DeviceProfile)` | Optimización: la plantilla ya fue parseada en una llamada previa y se reutiliza con datos distintos. |
+| `Render(string, DeviceProfile)` | El JSON ya viene con todos los valores resueltos (`"format": "integrated"`, sin loops ni conditionals). El motor saltea la etapa de Evaluate. |
+| `RenderLayout(...)` | Preview de UI: necesita el `LayoutedDocument` intermedio sin ejecutar el renderer final. |
+
+> **Defensa en profundidad:** el overload integrado verifica que el JSON declare `"format": "integrated"`. Si llega un template clásico por esta vía, devuelve un `RenderResult` con error en lugar de procesarlo silenciosamente.
 
 ---
 
@@ -79,15 +103,22 @@ public interface IDocumentEngine
 ```csharp id="documenttemplate-001"
 public class DocumentTemplate
 {
+    public const string FormatTemplate   = "template";
+    public const string FormatIntegrated = "integrated";
+
     public string Id { get; set; }
     public string Version { get; set; }
-    public DocumentNode Root { get; set; }
+    public DocumentNode? Root { get; set; }
+    public Dictionary<string, object>? Metadata { get; set; }
+
+    /// Default: "template". Set to "integrated" to indicate the AST is fully resolved.
+    public string Format { get; set; } = FormatTemplate;
 }
 ```
 
 **Responsabilidad**
 
-Representar una plantilla ya parseada y validada.
+Representar una plantilla ya parseada y validada. La propiedad `Format` discrimina entre el modo clásico (con placeholders/loops/conditionals a resolver) y el modo integrado (AST ya resuelto).
 
 ---
 

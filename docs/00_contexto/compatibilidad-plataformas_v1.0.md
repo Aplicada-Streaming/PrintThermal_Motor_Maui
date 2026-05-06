@@ -3,8 +3,10 @@
 **Proyecto:** Motor de Documentos e Impresión basado en DSL
 **Documento:** compatibilidad-plataformas_v1.0.md
 **Versión:** 1.0
-**Estado:** Vigente
+**Estado:** Histórico
 **Fecha:** 2026-03-30
+
+> **⚠️ Documento histórico — versión 1.0.** Para la versión actual con los nuevos paquetes (`MotorDsl.Printing.Abstractions`, `MotorDsl.Bluetooth`, `MotorDsl.Maui`) ver [compatibilidad-plataformas_v1.1.md](./compatibilidad-plataformas_v1.1.md).
 
 ---
 

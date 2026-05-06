@@ -12,7 +12,11 @@
     <PackageTags>maui;thermal;escpos;bluetooth;printing;dsl</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <RepositoryUrl>https://github.com/Aplicada-Streaming/PrintThermal_Motor_Maui</RepositoryUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" Visible="false" />
+  </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\MotorDsl.Printing.Abstractions\MotorDsl.Printing.Abstractions.csproj" />
   </ItemGroup>

@@ -1,42 +1,64 @@
 # Guía de Integración en .NET MAUI
 
-Guía paso a paso para integrar el motor DSL en una aplicación .NET MAUI con impresión Bluetooth.
+Guía paso a paso para integrar el Motor DSL en una aplicación .NET MAUI con
+impresión Bluetooth térmica. Cubre los 3 paquetes nuevos
+(`MotorDsl.Printing.Abstractions`, `MotorDsl.Bluetooth`, `MotorDsl.Maui`) y los
+4 paquetes core (`MotorDsl.Core`, `MotorDsl.Parser`, `MotorDsl.Rendering`,
+`MotorDsl.Extensions`).
 
 ---
 
-## 1. Agregar referencia al proyecto
+## 1. Introducción
 
-### Vía ProjectReference (desarrollo local)
-
-En el `.csproj` de tu app MAUI:
-
-```xml
-<ItemGroup>
-  <ProjectReference Include="..\..\src\MotorDsl.Core\MotorDsl.Core.csproj" />
-  <ProjectReference Include="..\..\src\MotorDsl.Parser\MotorDsl.Parser.csproj" />
-  <ProjectReference Include="..\..\src\MotorDsl.Rendering\MotorDsl.Rendering.csproj" />
-  <ProjectReference Include="..\..\src\MotorDsl.Extensions\MotorDsl.Extensions.csproj" />
-</ItemGroup>
-```
-
-### Vía NuGet (cuando esté publicado)
-
-```xml
-<ItemGroup>
-  <PackageReference Include="MotorDsl.Extensions" Version="1.0.0" />
-</ItemGroup>
-```
-
-> El paquete `MotorDsl.Extensions` trae como dependencias transitivas `MotorDsl.Core`, `MotorDsl.Parser` y `MotorDsl.Rendering`.
+`MotorDsl.Maui` proporciona controles bindeables, renderers de PDF / ESC/POS
+bitmap / raster preview y un error handler con eventos para feedback de UI,
+todo construido sobre **.NET 10 + .NET MAUI**. El stack opera contra el
+contrato `IThermalPrinterService` definido en `MotorDsl.Printing.Abstractions`
+y delega el transporte físico (BT, USB, Red, BLE) a uno o más
+`IThermalPrinterTransport` registrados.
 
 ---
 
-## 2. Registrar con AddMotorDslEngine()
+## 2. Instalación de paquetes NuGet
 
-En `MauiProgram.cs`:
+En el `.csproj` de tu app MAUI bastan **dos** PackageReferences explícitos —
+los demás llegan como dependencias transitivas de `MotorDsl.Maui`:
+
+```xml
+<ItemGroup>
+  <PackageReference Include="MotorDsl.Maui" Version="<latest>" />
+  <PackageReference Include="MotorDsl.Bluetooth" Version="<latest>" />
+</ItemGroup>
+```
+
+Los 7 paquetes resultantes (referencia completa):
+
+```xml
+<ItemGroup>
+  <PackageReference Include="MotorDsl.Core"                  Version="<latest>" />
+  <PackageReference Include="MotorDsl.Parser"                Version="<latest>" />
+  <PackageReference Include="MotorDsl.Rendering"             Version="<latest>" />
+  <PackageReference Include="MotorDsl.Extensions"            Version="<latest>" />
+  <PackageReference Include="MotorDsl.Printing.Abstractions" Version="<latest>" />
+  <PackageReference Include="MotorDsl.Bluetooth"             Version="<latest>" />
+  <PackageReference Include="MotorDsl.Maui"                  Version="<latest>" />
+</ItemGroup>
+```
+
+> Hasta que `MotorDsl.Maui` y `MotorDsl.Bluetooth` se publiquen en nuget.org,
+> los samples del repositorio los consumen vía `<ProjectReference>` (Fase 1 —
+> ver `samples/MotorDsl.Nuget.Integrated.MultaApp/MotorDsl.Nuget.Integrated.MultaApp.csproj`).
+
+---
+
+## 3. Configuración en `MauiProgram.cs`
 
 ```csharp
+using Microsoft.Extensions.Logging;
+using MotorDsl.Bluetooth;
+using MotorDsl.Core.Models;
 using MotorDsl.Extensions;
+using MotorDsl.Maui;
 
 public static class MauiProgram
 {
@@ -50,56 +72,94 @@ public static class MauiProgram
                 fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");
             });
 
-        // ── Motor DSL ──────────────────────────────────
-        // Registra: IDslParser, IEvaluator, ILayoutEngine,
-        //           IRendererRegistry (TextRenderer + EscPosRenderer),
-        //           IDocumentEngine
-        builder.Services.AddMotorDslEngine();
+        // Motor DSL: pipeline + templates + profiles + renderers MAUI
+        builder.Services.AddMotorDslEngine()
+            .AddTemplates(t =>
+            {
+                t.Add("ticket-multa", MultaIntegratedDsl.Document);
+            })
+            .AddProfiles(p =>
+            {
+                p.Add(new DeviceProfile("thermal_58mm", 32, "escpos-bitmap"));
+                p.Add(new DeviceProfile("preview", 32, "raster-preview"));
+                p.Add(new DeviceProfile("a4-pdf", 80, "pdf"));
+            })
+            .AddMotorDslMaui();
 
-        // ── Providers (opcional) ───────────────────────
-        // Templates precargados
-        builder.Services.AddSingleton<ITemplateProvider>(sp =>
-        {
-            var provider = new InMemoryTemplateProvider();
-            provider.Add("ticket-simple", File.ReadAllText("templates/ticket-simple.json"));
-            provider.Add("ticket-qr", File.ReadAllText("templates/ticket-con-qr.json"));
-            return provider;
-        });
+        // Transport Bluetooth (Android Classic SPP)
+        builder.Services.AddBluetoothPrinterTransport();
 
-        // Perfiles de dispositivo
-        builder.Services.AddSingleton<IDeviceProfileProvider>(sp =>
-        {
-            var provider = new InMemoryDeviceProfileProvider();
-            provider.Add(new DeviceProfile("58mm", 32, "escpos"));
-            provider.Add(new DeviceProfile("80mm", 48, "escpos"));
-            provider.Add(new DeviceProfile("preview", 48, "text"));
-            return provider;
-        });
-
-        // ── Servicios de la app ────────────────────────
-        builder.Services.AddSingleton<IThermalPrinterService, ThermalPrinterService>();
         builder.Services.AddTransient<MainPage>();
 
+#if DEBUG
+        builder.Logging.AddDebug();
+#endif
         return builder.Build();
     }
 }
 ```
 
-### Qué registra `AddMotorDslEngine()`
+### Qué registra `AddMotorDslMaui()`
 
 | Servicio | Implementación | Lifetime | Rol |
-|----------|---------------|----------|-----|
-| `IDslParser` | `DslParser` | Singleton | Parsea JSON DSL a `DocumentTemplate` |
-| `IEvaluator` | `Evaluator` | Singleton | Resuelve bindings y condiciones |
-| `ILayoutEngine` | `LayoutEngine` | Singleton | Aplica layout según `DeviceProfile.Width` |
-| `IRendererRegistry` | `RendererRegistry` | Singleton | Contiene `TextRenderer` + `EscPosRenderer` |
-| `IDocumentEngine` | `DocumentEngine` | Singleton | Orquesta todo el pipeline |
+|---|---|---|---|
+| `IBitmapRasterizer` | `SkiaSharpRasterizer` | Singleton | Convierte imágenes a 1-bit. |
+| `QrCodeRasterizer` | (concreto) | Singleton | QR PNG con QRCoder. |
+| `IPrintErrorHandler` | `MauiPrintErrorHandler` | Singleton | Reemplaza al default; emite eventos. |
+| `IThermalPrinterService` | `ThermalPrinterService` | Singleton | Orquestador de impresión. |
+| `IRenderer` (PDF) | `PdfRenderer` | Singleton | Target `pdf`. |
+| `IRenderer` (ESC/POS bitmap) | `BitmapEscPosRenderer` | Singleton | Target `escpos-bitmap`. |
+| `IRenderer` (raster preview) | `RasterPreviewRenderer` | Singleton | Target `raster-preview`. |
+
+### Qué registra `AddBluetoothPrinterTransport()`
+
+| Servicio | Implementación | Lifetime |
+|---|---|---|
+| `IThermalPrinterTransport` (Kind=`bluetooth`) | `BluetoothPrinterTransport` | Singleton |
 
 ---
 
-## 3. Inyectar y usar IDocumentEngine
+## 4. Permisos Android
 
-### Constructor injection en una ContentPage
+`Platforms/Android/AndroidManifest.xml`:
+
+```xml
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <!-- Bluetooth (legacy API < 31) -->
+  <uses-permission android:name="android.permission.BLUETOOTH" />
+  <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
+
+  <!-- Bluetooth (API 31+ / Android 12+) -->
+  <uses-permission android:name="android.permission.BLUETOOTH_SCAN"
+                   android:usesPermissionFlags="neverForLocation" />
+  <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+
+  <!-- Ubicación (necesario en Android < 12 para escaneo) -->
+  <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+
+  <application android:allowBackup="true" android:supportsRtl="true">
+  </application>
+</manifest>
+```
+
+En **runtime** (Android 12+) se deben solicitar `BLUETOOTH_SCAN` y
+`BLUETOOTH_CONNECT` antes de invocar `DiscoverDevicesAsync`:
+
+```csharp
+var activity = Platform.CurrentActivity!;
+string[] btPermissions =
+{
+    Manifest.Permission.BluetoothScan,
+    Manifest.Permission.BluetoothConnect
+};
+ActivityCompat.RequestPermissions(activity, btPermissions, requestCode: 1);
+```
+
+---
+
+## 5. Uso del servicio `IThermalPrinterService`
+
+### 5.1 Inyección
 
 ```csharp
 public partial class MainPage : ContentPage
@@ -116,347 +176,290 @@ public partial class MainPage : ContentPage
 }
 ```
 
-### Ejemplo — Render a texto (preview/debug)
+### 5.2 Descubrir y conectar
 
 ```csharp
-var templateJson = """
+IReadOnlyList<PrinterDevice> devices =
+    await _printer.DiscoverDevicesAsync(kind: "bluetooth");
+
+if (devices.Count > 0)
 {
-  "id": "test",
-  "version": "1.0",
-  "root": {
-    "type": "text",
-    "text": "Hola {{nombre}}",
-    "style": { "align": "center", "bold": true }
-  }
-}
-""";
-
-var data = new Dictionary<string, object> { ["nombre"] = "Mundo" };
-var profile = new DeviceProfile("preview", 32, "text");
-
-RenderResult result = _engine.Render(templateJson, data, profile);
-
-if (result.IsSuccessful)
-{
-    // result.Output es string cuando Target = "text"
-    string texto = result.Output!.ToString()!;
-    PreviewLabel.Text = texto;
+    bool ok = await _printer.ConnectAsync(devices[0]);
+    if (ok) Console.WriteLine($"Conectado: {_printer.CurrentDevice?.Name}");
 }
 ```
 
-### Ejemplo — Render a ESC/POS (impresión térmica)
+### 5.3 Renderizar y enviar
 
 ```csharp
-var profile = new DeviceProfile("58mm", 32, "escpos");
-RenderResult result = _engine.Render(templateJson, data, profile);
+var profile = new DeviceProfile("thermal_58mm", 32, "escpos-bitmap");
+profile.SetCapability("supports_bitmap", true);
+profile.SetCapability("bitmap_max_width_px", 320);
 
-if (result.IsSuccessful)
-{
-    // result.Output es byte[] cuando Target = "escpos"
-    byte[] bytes = (byte[])result.Output!;
-
-    // Helpers para inspección
-    string? hex = result.ToHexString();    // "1B 40 1B 61 01 ..."
-    string? base64 = result.ToBase64();    // "G0BhAR0n..."
-}
-```
-
-### ToHexString() y ToBase64()
-
-| Método | Retorna | Cuándo es útil |
-|--------|---------|----------------|
-| `ToHexString()` | `"1B 40 1B 61 01 ..."` o `null` | Debug visual de comandos ESC/POS. Cada byte separado por espacio. |
-| `ToBase64()` | `"G0BhAR0n..."` o `null` | Serialización para almacenamiento o reenvío. Convertir de vuelta con `Convert.FromBase64String()`. |
-
-Ambos retornan `null` si `Output` no es `byte[]`.
-
-### Ejemplo — Render con formato integrado (sin diccionario de datos)
-
-Cuando el JSON ya viene con todos los valores resueltos (`"format": "integrated"`), se usa el overload simplificado `Render(json, profile)` — sin parámetro `data`. Útil cuando el documento se construyó previamente en un backend o un job batch.
-
-```csharp
-var integratedJson = """
-{
-  "id": "ticket-snapshot-001",
-  "version": "1.0",
-  "format": "integrated",
-  "root": {
-    "type": "container",
-    "layout": "vertical",
-    "children": [
-      { "type": "text", "value": "MI TIENDA",      "style": { "align": "center", "bold": true } },
-      { "type": "text", "value": "Cliente: Juan Pérez" },
-      { "type": "text", "value": "Total: $12.345" }
-    ]
-  }
-}
-""";
-
-var profile = new DeviceProfile("58mm", 32, "escpos");
-
-// Nota: este overload no recibe `data` — el JSON ya está resuelto.
-RenderResult result = _engine.Render(integratedJson, profile);
-
-if (result.IsSuccessful)
+RenderResult result = _engine.Render(jsonDsl, profile);
+if (result.IsSuccessful && _printer.IsConnected)
 {
     byte[] bytes = (byte[])result.Output!;
     await _printer.SendBytesAsync(bytes);
 }
 ```
 
-| Aspecto | Modo clásico | Modo integrado |
-|---|---|---|
-| Llamada | `_engine.Render(json, data, profile)` | `_engine.Render(json, profile)` |
-| JSON de entrada | tiene `{{placeholders}}`, `loop`, `conditional` | tiene `value` resueltos, sin loops ni conditionals |
-| Diccionario de datos | requerido | no aplica |
-| Pipeline interno | Parse → Validate → **Evaluate** → Layout → Render | Parse → Validate → Layout → Render |
-
----
-
-## 4. Enviar a impresora Bluetooth
-
-### Separación de responsabilidades
-
-| Componente | Responsabilidad |
-|------------|----------------|
-| **Motor DSL** (librería) | Genera `byte[]` con comandos ESC/POS a partir de un template + datos + perfil. |
-| **App MAUI** (consumidora) | Conecta a la impresora BT, envía los bytes, maneja errores de comunicación. |
-
-La librería no conoce Bluetooth. Tu app es la que conecta, envía y desconecta.
-
-### Flujo completo
+### 5.4 Reconectar
 
 ```csharp
-// 1. Preparar datos
-var templateJson = templateProvider.GetTemplate("ticket-simple");
-var data = new Dictionary<string, object>
+if (!_printer.IsConnected && _printer.CurrentDevice is not null)
+    await _printer.ReconnectAsync();
+```
+
+### 5.5 Eventos
+
+```csharp
+_printer.DevicesDiscovered += (_, args) =>
+    DevicesLabel.Text = $"Descubiertos: {args.Devices.Count}";
+
+_printer.ErrorOccurred += (_, args) =>
+    ErrorLabel.Text = $"{args.Error.Type}: {args.Error.Message}";
+
+_printer.PropertyChanged += (_, e) =>
 {
-    ["nombreNegocio"] = "Mi Café",
-    ["fecha"] = DateTime.Now.ToString("dd/MM/yyyy HH:mm"),
-    ["items"] = new List<Dictionary<string, object>>
-    {
-        new() { ["nombre"] = "Café", ["cantidad"] = "2",
-                ["precio"] = "150.00", ["total"] = "300.00" },
-        new() { ["nombre"] = "Medialunas", ["cantidad"] = "6",
-                ["precio"] = "50.00", ["total"] = "300.00" }
-    },
-    ["subtotal"] = "600.00",
-    ["impuesto"] = "126.00",
-    ["total"] = "726.00",
-    ["footer"] = "Gracias por su compra!"
+    if (e.PropertyName == nameof(IThermalPrinterService.ConnectionState))
+        Dispatcher.Dispatch(() => StateLabel.Text = _printer.ConnectionState.ToString());
 };
-
-// 2. Renderizar
-var profile = new DeviceProfile("58mm", 32, "escpos");
-RenderResult result = _engine.Render(templateJson!, data, profile);
-
-// 3. Verificar resultado
-if (!result.IsSuccessful)
-{
-    await DisplayAlert("Error", string.Join("\n", result.Errors), "OK");
-    return;
-}
-
-// 4. Enviar a impresora
-byte[] escposBytes = (byte[])result.Output!;
-var printerProfile = PrinterProfile.Thermal58mm;
-
-try
-{
-    await _printer.SendBytesAsync(escposBytes, printerProfile);
-    await DisplayAlert("OK", "Ticket impreso", "OK");
-}
-catch (Exception ex)
-{
-    await DisplayAlert("Error BT", ex.Message, "OK");
-}
 ```
 
-### IThermalPrinterService — interfaz de referencia
+### 5.6 Retry exponencial
 
 ```csharp
-public interface IThermalPrinterService
-{
-    bool IsConnected { get; }
-    Task<List<BluetoothDevice>> ScanDevicesAsync();
-    Task<bool> ConnectAsync(string deviceAddress);
-    Task DisconnectAsync();
-    Task SendBytesAsync(byte[] data, PrinterProfile? profile = null);
-}
+await _printer.SendBytesAsync(
+    bytes,
+    profile: PrinterProfile.Real58HB6,
+    retry:   new PrintRetryOptions { MaxRetries = 5, InitialDelayMs = 200 });
 ```
 
-Esta interfaz vive en la app consumidora (`MotorDsl.SampleApp.Services`), no en la librería core. Cada app puede implementar su propia versión.
+El servicio aplica retry exponencial (`InitialDelayMs * 2^(attempt-1)`) e
+intenta reconectar el transport entre intentos. La decisión final de retry vs
+abort la toma el `IPrintErrorHandler` registrado.
 
 ---
 
-## 5. Manejo de errores
+## 6. Componentes MAUI
 
-### Errores de renderizado
+Todos los controles viven en
+`xmlns:muic="clr-namespace:MotorDsl.Maui.Controls;assembly=MotorDsl.Maui"`.
 
-```csharp
-RenderResult result = _engine.Render(templateJson, data, profile);
+### 6.1 `PrinterStatusBadge`
 
-if (!result.IsSuccessful)
-{
-    // result.Errors contiene los mensajes de error
-    foreach (var error in result.Errors)
-    {
-        Console.WriteLine($"ERROR: {error}");
-    }
-    // Errores típicos:
-    // - "Parse failed: ..." → JSON inválido o estructura DSL incorrecta
-    // - "Render failed: ..." → Error durante evaluación/layout/render
-}
-
-// Warnings no bloquean el render pero avisan de situaciones
-foreach (var warning in result.Warnings)
-{
-    Console.WriteLine($"WARNING: {warning}");
-}
-```
-
-### Errores de impresión
-
-```csharp
-try
-{
-    await _printer.SendBytesAsync(escposBytes, printerProfile);
-}
-catch (InvalidOperationException)
-{
-    // No hay impresora conectada
-    await DisplayAlert("Error", "Conectá una impresora primero", "OK");
-}
-catch (Exception ex)
-{
-    // Error de comunicación BT — guardar para reenvío
-    string base64 = result.ToBase64()!;
-    await SaveForRetryAsync(base64);  // Guardar en SQLite, preferences, etc.
-
-    await DisplayAlert("Error", $"Falló la impresión: {ex.Message}", "OK");
-}
-```
-
-### Reenvío con ToBase64()
-
-```csharp
-// Guardar
-string base64 = result.ToBase64()!;
-Preferences.Set("pending_print", base64);
-
-// Recuperar y reenviar
-string saved = Preferences.Get("pending_print", "");
-if (!string.IsNullOrEmpty(saved))
-{
-    byte[] bytes = Convert.FromBase64String(saved);
-    await _printer.SendBytesAsync(bytes, PrinterProfile.Thermal58mm);
-    Preferences.Remove("pending_print");
-}
-```
-
----
-
-## 6. Tips y troubleshooting
-
-### Debuggear un template con TextRenderer
-
-Antes de enviar a la impresora, siempre podés previsualizar con texto plano:
-
-```csharp
-// Usar "text" en vez de "escpos" para ver el output legible
-var previewProfile = new DeviceProfile("debug", 32, "text");
-var result = _engine.Render(templateJson, data, previewProfile);
-Console.WriteLine(result.Output);
-```
-
-Esto produce la salida como texto plano (sin comandos binarios), ideal para verificar layout, alineación y bindings.
-
-### Binding no resuelto (UNRESOLVED)
-
-Si un binding no encuentra su dato en el diccionario, el motor lo deja como `{{UNRESOLVED:ruta}}` en la salida:
-
-```
-Cliente: {{UNRESOLVED:cliente.nombre}}
-```
-
-**Causas comunes:**
-- Typo en el binding: `{{clinte.nombre}}` en vez de `{{cliente.nombre}}`
-- El dato no fue incluido en el diccionario
-- En un loop, usar la ruta sin el alias: `{{nombre}}` en vez de `{{item.nombre}}`
-
-**Solución:** verificar que la clave en el diccionario de datos coincida exactamente con la ruta del binding.
-
-### Ajustar Width para tu impresora
-
-Si el texto no entra en la línea o sobra espacio:
-
-1. Imprimir el template de medición (ver guía de perfiles)
-2. Contar los caracteres que entran
-3. Actualizar el `Width` en tu `DeviceProfile`
-
-Recordá: 58mm ≈ 32 chars, 80mm ≈ 48 chars con fuente estándar.
-
-### Permisos Android para Bluetooth
-
-Tu `AndroidManifest.xml` necesita estos permisos:
+Refleja el estado del servicio con color y texto.
 
 ```xml
-<!-- Bluetooth (legacy API < 31) -->
-<uses-permission android:name="android.permission.BLUETOOTH" />
-<uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
-
-<!-- Bluetooth (API 31+ / Android 12+) -->
-<uses-permission android:name="android.permission.BLUETOOTH_SCAN"
-                 android:usesPermissionFlags="neverForLocation" />
-<uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
-
-<!-- Ubicación (necesario para escaneo BT en Android < 12) -->
-<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-<uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+<muic:PrinterStatusBadge x:Name="StatusBadge" />
 ```
-
-Además, en **runtime** (Android 12+) debés solicitar `BLUETOOTH_SCAN` y `BLUETOOTH_CONNECT` antes de escanear o conectar:
 
 ```csharp
-var status = await Permissions.RequestAsync<Permissions.Bluetooth>();
-if (status != PermissionStatus.Granted)
-{
-    await DisplayAlert("Permiso", "Se necesita Bluetooth para imprimir", "OK");
-    return;
-}
+StatusBadge.Service = _printer;   // basta una vez
 ```
 
-En Android < 12, solicitar `Permissions.LocationWhenInUse` en su lugar.
+### 6.2 `PrinterPickerView`
+
+Botón Escanear + lista de dispositivos. Conecta automáticamente al tocar uno.
+
+```xml
+<muic:PrinterPickerView x:Name="DevicePicker"
+                        FilterKind="bluetooth"
+                        AutoConnectIfSingle="True" />
+```
+
+```csharp
+DevicePicker.Service = _printer;
+DevicePicker.DeviceSelected += (_, dev) => Status.Text = $"Conectado a {dev.Name}";
+DevicePicker.ScanError    += (_, ex)  => Status.Text = $"BT Error: {ex.Message}";
+await DevicePicker.ScanAsync();   // disparar escaneo manual
+```
+
+### 6.3 `MauiRasterPreview`
+
+Muestra el PNG producido por `RasterPreviewRenderer` con zoom configurable.
+
+```xml
+<muic:MauiRasterPreview x:Name="RasterPreview" ZoomFactor="2" />
+```
+
+```csharp
+var profile = new DeviceProfile("preview", 32, "raster-preview");
+var result = _engine.Render(jsonDsl, profile);
+RasterPreview.ImageBytes = (byte[])result.Output!;
+```
+
+### 6.4 `MauiDocumentPreview`
+
+Vista previa tipográfica del `LayoutedDocument` (alineación, bold, marcadores
+para QR / barcode / bitmap).
+
+```xml
+<muic:MauiDocumentPreview x:Name="DocPreview" />
+```
+
+```csharp
+DocPreview.Document = layoutedDocument;
+```
+
+### 6.5 `PrinterPickerPage` (modal)
+
+`ContentPage` que envuelve `PrinterPickerView` con un Cancelar.
+
+```csharp
+var page = new PrinterPickerPage(_printer, filterKind: "bluetooth");
+await Navigation.PushModalAsync(page);
+```
 
 ---
 
-## 7. Compatibilidad de plataformas
+## 7. Manejo de errores
 
-La librería core es multiplataforma (.NET Standard), pero la conectividad Bluetooth para impresoras térmicas solo está disponible en Android.
+### 7.1 `MauiPrintErrorHandler`
+
+Lo registra automáticamente `AddMotorDslMaui()`. Para suscribirse a sus
+eventos, resolvelo del DI:
+
+```csharp
+var handler = sp.GetRequiredService<IPrintErrorHandler>() as MauiPrintErrorHandler;
+if (handler is not null)
+{
+    handler.RetryAttempted += (_, error) =>
+        Toast.Make($"Reintentando ({error.Attempt}/{error.MaxAttempts})").Show();
+
+    handler.Succeeded += (_, attempts) =>
+        Toast.Make($"Impreso en {attempts} intento(s)").Show();
+}
+```
+
+### 7.2 Eventos del servicio
+
+```csharp
+_printer.ErrorOccurred += async (_, args) =>
+{
+    var err = args.Error;
+    await DisplayAlert("Error de impresión",
+        $"{err.Type}\nIntento {err.Attempt}/{err.MaxAttempts}\n{err.Message}",
+        "OK");
+};
+```
+
+### 7.3 Errores de render
+
+```csharp
+RenderResult result = _engine.Render(json, profile);
+if (!result.IsSuccessful)
+{
+    foreach (var err in result.Errors)
+        await DisplayAlert("Error", err, "OK");
+}
+foreach (var w in result.Warnings)
+    System.Diagnostics.Debug.WriteLine($"WARN: {w}");
+```
+
+### 7.4 Persistencia para reenvío
+
+```csharp
+try
+{
+    await _printer.SendBytesAsync(bytes);
+}
+catch
+{
+    Preferences.Set("pending_print_b64", Convert.ToBase64String(bytes));
+}
+```
+
+---
+
+## 8. Plataformas soportadas
 
 | Componente | Android | iOS | Windows |
 |---|---|---|---|
-| MotorDsl.Core (parser, evaluator, layout) | ✅ | ✅ | ✅ |
-| MotorDsl.Rendering (text, ESC/POS) | ✅ | ✅ | ✅ |
-| ThermalPrinterService (Bluetooth SPP) | ✅ | ❌ | ❌ |
-| SkiaSharp (rasterización de imágenes) | ✅ | ✅ | ✅ |
-| QuestPDF (generación PDF) | ✅ | ✅ | ✅ |
+| `MotorDsl.Core` / `Parser` / `Rendering` / `Extensions` | ✅ | ✅ | ✅ |
+| `MotorDsl.Printing.Abstractions` (orquestador) | ✅ | ✅ | ✅ |
+| `MotorDsl.Bluetooth` (BT Classic SPP) | ✅ | ❌ `PlatformNotSupportedException` | ❌ |
+| `MotorDsl.Maui` controles + renderers | ✅ | ✅ (sin BT) | ❌ MAUI desktop fuera de alcance |
+| `PdfRenderer` (target `pdf`) | ✅ | ✅ | ✅ |
+| `RasterPreviewRenderer` (target `raster-preview`) | ✅ | ✅ | ✅ |
 
-### ¿Por qué iOS no soporta Bluetooth para térmicas?
+iOS funciona para render + PDF + raster + UI MAUI. Para imprimir desde iOS
+hay que registrar otro `IThermalPrinterTransport` (BLE / WiFi / AirPrint vía
+PDF). Ver
+[`compatibilidad-plataformas_v1.1.md`](../00_contexto/compatibilidad-plataformas_v1.1.md)
+sección 6.
 
-Apple restringe el acceso a **Bluetooth clásico** (perfil SPP — Serial Port Profile) desde aplicaciones de terceros. Las impresoras térmicas ESC/POS estándar utilizan SPP para la comunicación serie. iOS solo expone **Bluetooth Low Energy (BLE)** a través de CoreBluetooth, y la mayoría de impresoras térmicas económicas no soportan BLE.
+---
 
-Esto no es una limitación de .NET MAUI ni de la librería — es una restricción del sistema operativo iOS.
+## 8.1 Diagnóstico y reporte de fallos
 
-### Alternativas para iOS
+`MotorDsl.Maui` expone `IDiagnosticsReportProvider` (registrado automáticamente
+en `AddMotorDslMaui()`) para capturar un snapshot de versiones de librería,
+info de app y dispositivo, impresora vinculada y permisos. Pensado para flujos
+de soporte: ver en pantalla, imprimir como ticket térmico o compartir vía
+Share API. Patrón típico (3 botones):
 
-Si necesitás imprimir desde iOS, estas son las opciones disponibles:
+```csharp
+public MainPage(IDocumentEngine engine,
+                IThermalPrinterService printer,
+                IDiagnosticsReportProvider diagnostics)
+{
+    InitializeComponent();
+    _engine = engine;
+    _printer = printer;
+    _diagnostics = diagnostics;
+}
 
-| Alternativa | Descripción |
-|---|---|
-| **Impresoras WiFi** | Algunas impresoras térmicas soportan conexión WiFi. El motor genera los mismos bytes ESC/POS, solo cambia el transporte (TCP socket en vez de Bluetooth). |
-| **AirPrint** | Usar el renderer PDF (`PdfRenderer`) y enviar el PDF a una impresora compatible con AirPrint. No usa ESC/POS. |
-| **Hardware MFi** | Impresoras certificadas por Apple bajo el programa MFi (Made for iPhone) permiten comunicación Bluetooth clásica, pero son significativamente más caras. |
-| **BLE (impresoras compatibles)** | Algunas impresoras modernas soportan BLE además de SPP. Requiere implementar un `IThermalPrinterService` que use CoreBluetooth. |
+private void OnDiagnosticoVerClicked(object? s, EventArgs e)
+{
+    var report  = _diagnostics.Build(notes: "captura manual");
+    var dsl     = _diagnostics.ToDslJson(report, paperWidthChars: 32);
+    var profile = new DeviceProfile("preview", 32, "raster-preview");
+    profile.SetCapability("bitmap_max_width_px", 384);
+    var result  = _engine.Render(dsl, profile);
+    if (result.IsSuccessful && result.Output is byte[] bytes)
+        RasterPreview.ImageBytes = bytes;
+}
 
-> **Nota:** La librería core funciona perfectamente en iOS para generar documentos en formato texto o PDF. Solo la capa de transporte Bluetooth es Android-only.
+private async void OnDiagnosticoImprimirClicked(object? s, EventArgs e)
+{
+    var report  = _diagnostics.Build(notes: "imprimir diag");
+    var dsl     = _diagnostics.ToDslJson(report);
+    var profile = new DeviceProfile("58HB6", 32, "escpos-bitmap");
+    profile.SetCapability("supports_bitmap", true);
+    profile.SetCapability("bitmap_max_width_px", 320);
+    var result  = _engine.Render(dsl, profile);
+    if (result.IsSuccessful && _printer.IsConnected)
+        await _printer.SendBytesAsync((byte[])result.Output!);
+}
+
+private async void OnDiagnosticoReportarClicked(object? s, EventArgs e)
+{
+    var report = _diagnostics.Build(notes: "Reporte de fallo");
+    var text   = _diagnostics.ToPlainText(report);
+    await Share.Default.RequestAsync(new ShareTextRequest
+    {
+        Title = "Reporte de fallo MotorDsl",
+        Text  = text
+    });
+}
+```
+
+Detalles de privacidad (`includePii`, `MaskMac`), customización, decorator y
+limitaciones conocidas en [`diagnostics.md`](diagnostics.md).
+
+---
+
+## 9. Referencias cruzadas
+
+- [Arquitectura de la Solución (v1.1)](../05_arquitectura_tecnica/arquitectura-solucion_v1.1.md)
+- [Extensibilidad del Motor (v1.1)](../05_arquitectura_tecnica/extensibilidad-motor_v1.1.md)
+- [Guía de Uso de la Librería (v1.1)](../05_arquitectura_tecnica/guia-uso-libreria_v1.1.md)
+- [Compatibilidad de Plataformas (v1.1)](../00_contexto/compatibilidad-plataformas_v1.1.md)
+- [Componentes UX MAUI](componentes-ux-maui.md)
+- [Render Pixelado y PDF](render-pixelado-y-pdf.md)
+- [Transports y Extensibilidad](transports-y-extensibilidad.md)
+- [Diagnóstico y reporte de fallos](diagnostics.md)
+- [Ejemplo: MultaApp NuGet](../11_examples/ejemplo-03-multaapp-nuget.md)
+- [Ejemplo: Multa Integrada](../11_examples/ejemplo-03-multa-integrada.md)

@@ -52,6 +52,13 @@
                 </ScrollView>
             </Frame>
 
+            <!-- Vista pixelada (raster preview, igual a lo que imprime la impresora) -->
+            <Frame x:Name="RasterFrame" BackgroundColor="#F5F5F5" BorderColor="#BDBDBD"
+                   Padding="6" CornerRadius="6" IsVisible="False">
+                <muic:MauiRasterPreview x:Name="RasterPreview" ZoomFactor="2"
+                                        HeightRequest="320" />
+            </Frame>
+
             <!-- Botones de accion -->
             <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8">
                 <Button x:Name="BtnPreview" Text="Vista Previa" Grid.Column="0"
@@ -64,6 +71,25 @@
                 <Button x:Name="BtnVerPdf" Text="Ver PDF" Grid.Column="2"
                         Clicked="OnVerPdfClicked" BackgroundColor="#FF9800"
                         TextColor="White" CornerRadius="8" HeightRequest="44" FontSize="13" />
+            </Grid>
+
+            <!-- Boton Vista Pixelada (raster preview) -->
+            <Button x:Name="BtnPixelado" Text="Vista Pixelada (raster)"
+                    Clicked="OnVistaPixeladaClicked" BackgroundColor="#7B1FA2"
+                    TextColor="White" CornerRadius="8" HeightRequest="40" FontSize="13" />
+
+            <!-- Botones de diagnóstico -->
+            <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8" Margin="0,4,0,0">
+                <Button x:Name="BtnDiagVer" Text="Ver Diag." Grid.Column="0"
+                        Clicked="OnDiagnosticoVerClicked" BackgroundColor="#607D8B"
+                        TextColor="White" CornerRadius="6" HeightRequest="36" FontSize="12" />
+                <Button x:Name="BtnDiagImprimir" Text="Imprimir Diag." Grid.Column="1"
+                        Clicked="OnDiagnosticoImprimirClicked" BackgroundColor="#455A64"
+                        TextColor="White" CornerRadius="6" HeightRequest="36" FontSize="12"
+                        IsVisible="{OnPlatform Android=True, iOS=False}" />
+                <Button x:Name="BtnDiagReportar" Text="Reportar Fallo" Grid.Column="2"
+                        Clicked="OnDiagnosticoReportarClicked" BackgroundColor="#D32F2F"
+                        TextColor="White" CornerRadius="6" HeightRequest="36" FontSize="12" />
             </Grid>
 
             <!-- Boton Reescanear (reemplazo del antiguo Reconectar) -->

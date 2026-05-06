@@ -1,3 +1,4 @@
+using Microsoft.Maui.ApplicationModel.DataTransfer;
 using MotorDsl.Core.Contracts;
 using MotorDsl.Core.Models;
 using MotorDsl.Nuget.Integrated.MultaApp.Templates;
@@ -17,16 +18,18 @@ public partial class MainPage : ContentPage
 {
     private readonly IDocumentEngine _engine;
     private readonly IThermalPrinterService _printer;
+    private readonly IDiagnosticsReportProvider _diagnostics;
 
     // Documentos disponibles: cada entrada es un JSON integrado completo (formato "integrated").
     // No hay diccionario de datos — todos los valores ya están resueltos en el JSON.
     private readonly (string Name, string IntegratedJson)[] _documents;
 
-    public MainPage(IDocumentEngine engine, IThermalPrinterService printer)
+    public MainPage(IDocumentEngine engine, IThermalPrinterService printer, IDiagnosticsReportProvider diagnostics)
     {
         InitializeComponent();
         _engine = engine;
         _printer = printer;
+        _diagnostics = diagnostics;
 
         _documents = new[]
         {
@@ -181,6 +184,37 @@ public partial class MainPage : ContentPage
         }
     }
 
+    // ─── Vista Pixelada (raster preview) ───
+
+    private void OnVistaPixeladaClicked(object? sender, EventArgs e)
+    {
+        var doc = GetSelectedDocument();
+        if (doc == null) return;
+
+        try
+        {
+            var profile = new DeviceProfile("preview", 32, "raster-preview");
+            profile.SetCapability("bitmap_max_width_px", 384);
+            var result = _engine.Render(doc, profile);
+            if (result.IsSuccessful && result.Output is byte[] bytes)
+            {
+                RasterPreview.ImageBytes = bytes;
+                RasterFrame.IsVisible = true;
+                ShowMessage($"Vista pixelada generada — {bytes.Length} bytes PNG");
+            }
+            else
+            {
+                RasterFrame.IsVisible = false;
+                ShowMessage("Error vista pixelada: " + string.Join("; ", result.Errors));
+            }
+        }
+        catch (Exception ex)
+        {
+            RasterFrame.IsVisible = false;
+            ShowMessage($"Excepción vista pixelada: {ex.Message}");
+        }
+    }
+
     // ─── Imprimir ESC/POS ───
 
     private async void OnImprimirClicked(object? sender, EventArgs e)
@@ -273,6 +307,81 @@ public partial class MainPage : ContentPage
         }
     }
 #endif
+
+    // ─── Diagnóstico ───
+
+    private void OnDiagnosticoVerClicked(object? sender, EventArgs e)
+    {
+        try
+        {
+            var report = _diagnostics.Build(notes: "captura manual desde sample");
+            var dsl = _diagnostics.ToDslJson(report, paperWidthChars: 32);
+            var profile = new DeviceProfile("preview", 32, "raster-preview");
+            profile.SetCapability("bitmap_max_width_px", 384);
+            var result = _engine.Render(dsl, profile);
+            if (result.IsSuccessful && result.Output is byte[] bytes)
+            {
+                RasterPreview.ImageBytes = bytes;
+                RasterFrame.IsVisible = true;
+                ShowMessage($"Diagnóstico generado — {bytes.Length} bytes PNG");
+            }
+            else
+            {
+                ShowMessage("Error diagnóstico: " + string.Join("; ", result.Errors));
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowMessage($"Excepción diagnóstico: {ex.Message}");
+        }
+    }
+
+    private async void OnDiagnosticoImprimirClicked(object? sender, EventArgs e)
+    {
+        try
+        {
+            var report = _diagnostics.Build(notes: "captura manual — botón Imprimir Diag");
+            var dsl = _diagnostics.ToDslJson(report, paperWidthChars: 32);
+            var profile = new DeviceProfile("58HB6", 32, "escpos-bitmap");
+            profile.SetCapability("supports_bitmap", true);
+            profile.SetCapability("bitmap_max_width_px", 320);
+            var result = _engine.Render(dsl, profile);
+            if (!result.IsSuccessful || result.Output is not byte[] bytes)
+            {
+                ShowMessage("Render diag falló: " + string.Join("; ", result.Errors));
+                return;
+            }
+            if (!_printer.IsConnected)
+            {
+                ShowMessage($"Render OK ({bytes.Length} bytes) pero no hay impresora conectada.");
+                return;
+            }
+            await _printer.SendBytesAsync(bytes);
+            ShowMessage($"Diagnóstico impreso — {bytes.Length} bytes");
+        }
+        catch (Exception ex)
+        {
+            ShowMessage($"Error imprimir diag: {ex.Message}");
+        }
+    }
+
+    private async void OnDiagnosticoReportarClicked(object? sender, EventArgs e)
+    {
+        try
+        {
+            var report = _diagnostics.Build(notes: "Reporte de fallo — usuario inició desde botón");
+            var text = _diagnostics.ToPlainText(report);
+            await Share.Default.RequestAsync(new ShareTextRequest
+            {
+                Title = "Reporte de fallo MotorDsl",
+                Text = text
+            });
+        }
+        catch (Exception ex)
+        {
+            ShowMessage($"Error reporte: {ex.Message}");
+        }
+    }
 
     // ─── Helper ───
 

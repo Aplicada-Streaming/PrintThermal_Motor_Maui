@@ -171,7 +171,7 @@ Lenguaje estructurado que define:
 📄 Ver detalle:
 
 ```text
-/docs/02_especificacion_funcional/definicion-dsl_v1.0.md
+/docs/02_especificacion_funcional/especificacion-funcional_v1.0.md
 ```
 
 ---
@@ -221,7 +221,8 @@ Permiten ampliar el motor mediante:
 📄 Ver detalle:
 
 ```text
-/docs/05_arquitectura_tecnica/guia-extensibilidad_v1.0.md
+/docs/05_arquitectura_tecnica/extensibilidad-motor_v1.0.md   (histórico)
+/docs/05_arquitectura_tecnica/extensibilidad-motor_v1.1.md   (vigente)
 ```
 
 ---

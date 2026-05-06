@@ -35,6 +35,7 @@ public static class MauiProgram
             .AddProfiles(p =>
             {
                 p.Add(new DeviceProfile("thermal_58mm", 32, "escpos-bitmap"));
+                p.Add(new DeviceProfile("preview", 32, "raster-preview"));
                 p.Add(new DeviceProfile("a4-pdf", 80, "pdf"));
                 p.Add(new DeviceProfile("pdf", 48, "pdf"));
             })

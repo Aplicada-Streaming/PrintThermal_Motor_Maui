@@ -3,7 +3,9 @@
 **Versión:** 1.0  
 **Fecha:** 2026-03-28  
 **Autor:** Equipo Técnico  
-**Estado:** Borrador  
+**Estado:** Histórico  
+
+> **⚠️ Documento histórico — versión 1.0.** Para la versión actual con los nuevos paquetes (`MotorDsl.Printing.Abstractions`, `MotorDsl.Bluetooth`, `MotorDsl.Maui`) ver [guia-uso-libreria_v1.1.md](./guia-uso-libreria_v1.1.md).
 
 ---
 

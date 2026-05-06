@@ -1,4 +1,4 @@
-namespace MotorDsl.Nuget.MultaApp.Services;
+namespace MotorDsl.Printing;
 
 public class PrinterProfile
 {

@@ -11,9 +11,12 @@
     <Project Path="samples/MotorDsl.SampleApp/MotorDsl.SampleApp.csproj" />
   </Folder>
   <Folder Name="/src/">
+    <Project Path="src/MotorDsl.Bluetooth/MotorDsl.Bluetooth.csproj" />
     <Project Path="src/MotorDsl.Core/MotorDsl.Core.csproj" />
     <Project Path="src/MotorDsl.Extensions/MotorDsl.Extensions.csproj" />
+    <Project Path="src/MotorDsl.Maui/MotorDsl.Maui.csproj" />
     <Project Path="src/MotorDsl.Parser/MotorDsl.Parser.csproj" />
+    <Project Path="src/MotorDsl.Printing.Abstractions/MotorDsl.Printing.Abstractions.csproj" />
     <Project Path="src/MotorDsl.Rendering/MotorDsl.Rendering.csproj" />
     <Project Path="src/MotorDsl.Tests/MotorDsl.Tests.csproj" />
   </Folder>

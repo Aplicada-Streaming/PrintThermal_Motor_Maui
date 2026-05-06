@@ -1,6 +1,6 @@
 using MotorDsl.Core.Models;
 
-namespace MotorDsl.Nuget.Integrated.MultaApp.Controls;
+namespace MotorDsl.Maui.Controls;
 
 /// <summary>
 /// Control MAUI que genera una vista previa visual de un LayoutedDocument.

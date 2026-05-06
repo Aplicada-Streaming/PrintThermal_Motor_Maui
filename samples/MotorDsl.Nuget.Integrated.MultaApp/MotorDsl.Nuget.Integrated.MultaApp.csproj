@@ -37,23 +37,26 @@
 		<MauiAsset Include="Resources\Raw\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
 	</ItemGroup>
 
-	<ItemGroup>
-		<EmbeddedResource Include="Resources\Fonts\DroidSans-Regular.ttf" />
-	</ItemGroup>
-
 	<!-- NuGet packages (instead of ProjectReference) — validates published packages -->
 	<ItemGroup>
-		<PackageReference Include="MotorDsl.Core" Version="1.0.3" />
-		<PackageReference Include="MotorDsl.Parser" Version="1.0.3" />
-		<PackageReference Include="MotorDsl.Rendering" Version="1.0.3" />
-		<PackageReference Include="MotorDsl.Extensions" Version="1.0.3" />
+		<PackageReference Include="MotorDsl.Core" Version="1.0.4" />
+		<PackageReference Include="MotorDsl.Parser" Version="1.0.4" />
+		<PackageReference Include="MotorDsl.Rendering" Version="1.0.4" />
+		<PackageReference Include="MotorDsl.Extensions" Version="1.0.4" />
+	</ItemGroup>
+
+	<!-- Fase 1: ProjectReference temporal hasta que se publique la primera version.
+	     Despues de publicar, reemplazar por <PackageReference Include="MotorDsl.Maui" Version="..." />
+	     como hacen las otras refs de MotorDsl.* -->
+	<ItemGroup>
+		<ProjectReference Include="..\..\src\MotorDsl.Printing.Abstractions\MotorDsl.Printing.Abstractions.csproj" />
+		<ProjectReference Include="..\..\src\MotorDsl.Bluetooth\MotorDsl.Bluetooth.csproj" />
+		<ProjectReference Include="..\..\src\MotorDsl.Maui\MotorDsl.Maui.csproj" />
 	</ItemGroup>
 
 	<ItemGroup>
 		<PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
 		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.3" />
-		<PackageReference Include="SkiaSharp.Views.Maui.Controls" Version="3.119.0" />
-		<PackageReference Include="PdfSharpCore" Version="1.3.62" />
 	</ItemGroup>
 
 </Project>

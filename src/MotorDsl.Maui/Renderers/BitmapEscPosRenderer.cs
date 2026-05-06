@@ -3,7 +3,7 @@ using MotorDsl.Core.Models;
 using MotorDsl.Rendering;
 using System.Text;
 
-namespace MotorDsl.Nuget.Integrated.MultaApp.Renderers;
+namespace MotorDsl.Maui.Renderers;
 
 /// <summary>
 /// Renderer ESC/POS extendido con soporte de imágenes bitmap rasterizadas.

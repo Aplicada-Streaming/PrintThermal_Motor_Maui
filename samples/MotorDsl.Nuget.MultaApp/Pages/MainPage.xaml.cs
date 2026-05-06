@@ -1,7 +1,7 @@
 using MotorDsl.Core.Contracts;
 using MotorDsl.Core.Models;
-using MotorDsl.Nuget.MultaApp.Services;
 using MotorDsl.Nuget.MultaApp.Templates;
+using MotorDsl.Printing;
 
 #if ANDROID
 using Android;
@@ -17,7 +17,6 @@ public partial class MainPage : ContentPage
 {
     private readonly IDocumentEngine _engine;
     private readonly IThermalPrinterService _printer;
-    private List<BluetoothDevice> _devices = new();
 
     // Documentos disponibles: template DSL + datos + nombre
     private readonly (string Name, string Template, Func<Dictionary<string, object>> Data)[] _documents;
@@ -40,15 +39,21 @@ public partial class MainPage : ContentPage
     {
         base.OnAppearing();
 
+        StatusBadge.Service = _printer;
+        DevicePicker.Service = _printer;
+        DevicePicker.DeviceSelected += (_, device) => ShowMessage($"Conectado a {device.Name}.");
+        DevicePicker.ScanError += (_, ex) => ShowMessage($"BT Error: {ex.Message}");
+
 #if ANDROID
         var granted = await RequestBluetoothPermissions();
         if (granted)
-            await AutoConnectBluetoothAsync();
+            await DevicePicker.ScanAsync();
+        else
+            ShowMessage("Permisos BT denegados.");
 #elif IOS
-        // iOS: Bluetooth clásico SPP no disponible; nada que inicializar.
         await Task.CompletedTask;
 #else
-        await AutoConnectBluetoothAsync();
+        await DevicePicker.ScanAsync();
 #endif
     }
 
@@ -82,9 +87,7 @@ public partial class MainPage : ContentPage
 
                 if (!allGranted)
                 {
-                    ShowMessage("Permisos BT denegados. Aceptá los permisos y presioná Reconectar.");
-                    BtStatusLabel.Text = "Bluetooth: permisos denegados";
-                    BtnReconectar.IsVisible = true;
+                    ShowMessage("Permisos BT denegados. Aceptá los permisos y presioná Reescanear.");
                     return false;
                 }
             }
@@ -97,7 +100,6 @@ public partial class MainPage : ContentPage
                 if (status != PermissionStatus.Granted)
                 {
                     ShowMessage("Permisos de ubicación denegados (necesarios para BT en Android < 12).");
-                    BtnReconectar.IsVisible = true;
                     return false;
                 }
             }
@@ -108,89 +110,21 @@ public partial class MainPage : ContentPage
         {
             Console.WriteLine($"[MULTA] BT Permissions error: {ex.Message}");
             ShowMessage($"Error permisos BT: {ex.Message}");
-            BtnReconectar.IsVisible = true;
             return false;
         }
     }
 #endif
 
-    // ─── Bluetooth Auto-Connect ───
+    // ─── Reescanear manual ───
 
-    private async Task AutoConnectBluetoothAsync()
+    private async void OnReescanearClicked(object? sender, EventArgs e)
     {
-        try
-        {
-            ShowMessage("Buscando impresoras emparejadas...");
-            _devices = await _printer.ScanDevicesAsync();
-
-            if (_devices.Count == 0)
-            {
-                BtStatusLabel.Text = "Bluetooth: sin dispositivos emparejados";
-                BtnReconectar.IsVisible = true;
-                ShowMessage("No se encontraron impresoras.");
-            }
-            else if (_devices.Count == 1)
-            {
-                BtStatusLabel.Text = $"Conectando a {_devices[0].Name}...";
-                var ok = await _printer.ConnectAsync(_devices[0].Address);
-                BtStatusLabel.Text = ok
-                    ? $"Conectado: {_devices[0].Name}"
-                    : "Error al conectar";
-                BtnReconectar.IsVisible = !ok;
-                ShowMessage(ok ? "Conectado automáticamente." : "Falló la conexión.");
-            }
-            else
-            {
-                BtStatusLabel.Text = $"Bluetooth: {_devices.Count} dispositivos encontrados";
-                DeviceList.ItemsSource = _devices.Select(d => d.ToString()).ToList();
-                DeviceList.IsVisible = true;
-                ShowMessage("Seleccioná una impresora.");
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"[MULTA] AutoConnect error: {ex.Message}");
-            BtStatusLabel.Text = "Bluetooth: error";
-            BtnReconectar.IsVisible = true;
-            ShowMessage($"BT Error: {ex.Message}");
-        }
-    }
-
-    private async void OnDeviceSelected(object? sender, SelectionChangedEventArgs e)
-    {
-        if (e.CurrentSelection.FirstOrDefault() is not string selected) return;
-
-        var device = _devices.FirstOrDefault(d => d.ToString() == selected);
-        if (device == null) return;
-
-        try
-        {
-            BtStatusLabel.Text = $"Conectando a {device.Name}...";
-            var ok = await _printer.ConnectAsync(device.Address);
-            BtStatusLabel.Text = ok ? $"Conectado: {device.Name}" : "Error al conectar";
-            DeviceList.IsVisible = false;
-            BtnReconectar.IsVisible = !ok;
-            ShowMessage(ok ? $"Conectado a {device.Name}." : "Falló la conexión.");
-        }
-        catch (Exception ex)
-        {
-            BtStatusLabel.Text = "Error al conectar";
-            ShowMessage(ex.Message);
-        }
-    }
-
-    private async void OnReconectarClicked(object? sender, EventArgs e)
-    {
-        BtnReconectar.IsVisible = false;
 #if ANDROID
         var granted = await RequestBluetoothPermissions();
         if (granted)
-            await AutoConnectBluetoothAsync();
-#elif IOS
-        // iOS: Bluetooth clásico SPP no disponible; nada que inicializar.
-        await Task.CompletedTask;
+            await DevicePicker.ScanAsync();
 #else
-        await AutoConnectBluetoothAsync();
+        await DevicePicker.ScanAsync();
 #endif
     }
 
@@ -199,7 +133,6 @@ public partial class MainPage : ContentPage
     private void OnDocPickerChanged(object? sender, EventArgs e)
     {
         PreviewLabel.Text = "Presioná 'Vista Previa' para ver el documento.";
-        // PdfWebView eliminado
     }
 
     private (string Template, Dictionary<string, object> Data)? GetSelectedDocument()
@@ -223,7 +156,6 @@ public partial class MainPage : ContentPage
 
         try
         {
-            // PdfWebView eliminado
             var profile = new DeviceProfile("thermal_58mm", 32, "text");
             Console.WriteLine("[MULTA] Llamando engine.Render...");
             var result = _engine.Render(doc.Value.Template, doc.Value.Data, profile);

@@ -1,12 +1,11 @@
 using Microsoft.Extensions.Logging;
-using MotorDsl.Core.Contracts;
+using MotorDsl.Bluetooth;
 using MotorDsl.Core.Models;
-using MotorDsl.Core.Printing;
 using MotorDsl.Extensions;
+using MotorDsl.Maui;
 using MotorDsl.Nuget.MultaApp.Pages;
-using MotorDsl.Nuget.MultaApp.Renderers;
-using MotorDsl.Nuget.MultaApp.Services;
 using MotorDsl.Nuget.MultaApp.Templates;
+using MotorDsl.Printing;
 
 // using QuestPDF.Infrastructure;
 
@@ -25,7 +24,7 @@ public static class MauiProgram
                 fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
             });
 
-        // Motor DSL: core pipeline + templates + profiles + custom renderers
+        // Motor DSL: core pipeline + templates + profiles + renderers MAUI (PDF, ESC/POS bitmap, SkiaSharp).
         builder.Services.AddMotorDslEngine()
             .AddTemplates(t =>
             {
@@ -39,15 +38,12 @@ public static class MauiProgram
                 p.Add(new DeviceProfile("a4-pdf", 80, "pdf"));
                 p.Add(new DeviceProfile("pdf", 48, "pdf"));
             })
-            .AddRenderer<PdfRenderer>()
-            .AddRenderer<BitmapEscPosRenderer>();
+            .AddMotorDslMaui();
 
-        // Bitmap rasterizer (SkiaSharp)
-        builder.Services.AddSingleton<IBitmapRasterizer, SkiaSharpRasterizer>();
+        // Transport Bluetooth (Android Classic SPP)
+        builder.Services.AddBluetoothPrinterTransport();
 
         // Servicios de la app
-        builder.Services.AddSingleton<IPrintErrorHandler, DefaultPrintErrorHandler>();
-        builder.Services.AddSingleton<IThermalPrinterService, ThermalPrinterService>();
         builder.Services.AddTransient<MainPage>();
 
 #if DEBUG

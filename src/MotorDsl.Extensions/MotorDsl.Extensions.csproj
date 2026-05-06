@@ -15,11 +15,11 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <PackageId>MotorDsl.Extensions</PackageId>
-    <Authors>UTN FRP TUP Aplicada 2025</Authors>
+     <Authors>Fernando Rafael Filipuzzi</Authors>
     <Description>Motor DSL para documentos e impresión térmica ESC/POS. Extensiones DI y fluent API (AddMotorDslEngine).</Description>
     <PackageTags>maui;thermal;escpos;dsl;printing</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <RepositoryUrl>https://github.com/UTN-FRP-TUP-Aplicada-2025/Ejemplos_Maui_PrintThermal_Driver</RepositoryUrl>
+    <RepositoryUrl>https://github.com/Aplicada-Streaming/PrintThermal_Motor_Maui</RepositoryUrl>
   </PropertyGroup>
 
 </Project>

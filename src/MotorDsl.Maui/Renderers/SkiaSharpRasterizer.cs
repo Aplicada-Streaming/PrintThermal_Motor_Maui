@@ -2,7 +2,7 @@ using MotorDsl.Core.Contracts;
 using MotorDsl.Core.Models;
 using SkiaSharp;
 
-namespace MotorDsl.Nuget.Integrated.MultaApp.Renderers;
+namespace MotorDsl.Maui.Renderers;
 
 /// <summary>
 /// Implementa IBitmapRasterizer usando SkiaSharp.

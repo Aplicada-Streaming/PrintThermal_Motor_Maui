@@ -1,47 +1,28 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:muic="clr-namespace:MotorDsl.Maui.Controls;assembly=MotorDsl.Maui"
              x:Class="MotorDsl.Nuget.MultaApp.Pages.MainPage"
              Title="Multas - Motor DSL">
 
     <ScrollView>
         <VerticalStackLayout Padding="12" Spacing="10">
 
-            <!-- ═══ Estado Bluetooth (solo Android) ═══ -->
-            <Frame BackgroundColor="#E3F2FD" BorderColor="#1565C0" Padding="10" CornerRadius="8"
-                   IsVisible="{OnPlatform Android=True, iOS=False}">
-                <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto">
-                    <Label x:Name="BtStatusLabel" Text="Bluetooth: buscando..."
-                           FontSize="14" VerticalOptions="Center" />
-                    <Button x:Name="BtnReconectar" Grid.Column="1" Text="Reconectar"
-                            Clicked="OnReconectarClicked" BackgroundColor="#1565C0"
-                            TextColor="White" CornerRadius="6" HeightRequest="36"
-                            FontSize="12" IsVisible="False" />
-                </Grid>
-            </Frame>
+            <!-- Estado / picker Bluetooth (solo Android) -->
+            <muic:PrinterStatusBadge x:Name="StatusBadge" Margin="0,0,0,8"
+                                     IsVisible="{OnPlatform Android=True, iOS=False}" />
+            <muic:PrinterPickerView x:Name="DevicePicker" FilterKind="bluetooth"
+                                    Margin="0,0,0,12"
+                                    IsVisible="{OnPlatform Android=True, iOS=False}" />
 
-            <!-- ═══ Aviso iOS: sin impresion BT ═══ -->
+            <!-- Aviso iOS: sin impresion BT -->
             <Frame BackgroundColor="#FFF3E0" BorderColor="#F57C00" Padding="10" CornerRadius="8"
                    IsVisible="{OnPlatform Android=False, iOS=True}">
-                <Label Text="&#x2139;&#xFE0F; Impresión Bluetooth no disponible en iOS. Use \u2018Ver PDF\u2019 para generar el documento."
+                <Label Text="&#x2139;&#xFE0F; Impresi&#243;n Bluetooth no disponible en iOS. Use &#8216;Ver PDF&#8217; para generar el documento."
                        TextColor="#E65100" FontSize="13" HorizontalTextAlignment="Center" />
             </Frame>
 
-            <!-- ═══ Lista de dispositivos (visible solo si hay varios) ═══ -->
-            <CollectionView x:Name="DeviceList" IsVisible="False"
-                            SelectionMode="Single" SelectionChanged="OnDeviceSelected"
-                            HeightRequest="120">
-                <CollectionView.ItemTemplate>
-                    <DataTemplate>
-                        <Frame Padding="8" Margin="2" BackgroundColor="#F5F5F5"
-                               BorderColor="#BDBDBD" CornerRadius="6">
-                            <Label Text="{Binding .}" FontSize="13" />
-                        </Frame>
-                    </DataTemplate>
-                </CollectionView.ItemTemplate>
-            </CollectionView>
-
-            <!-- ═══ Selector de documento ═══ -->
+            <!-- Selector de documento -->
             <Label Text="Documento:" FontAttributes="Bold" FontSize="14" />
             <Border Stroke="#CCCCCC" StrokeShape="RoundRectangle 8" BackgroundColor="White"
                     Padding="4" HeightRequest="48">
@@ -51,27 +32,27 @@
                             TextColor="Black" TitleColor="#999999" FontSize="14"
                             HorizontalOptions="Fill" VerticalOptions="Center">
                         <Picker.Items>
-                            <x:String>Acta de Infracción</x:String>
+                            <x:String>Acta de Infracci&#243;n</x:String>
                             <x:String>Ticket Simple de Multa</x:String>
                             <x:String>Comprobante de Pago</x:String>
                         </Picker.Items>
                     </Picker>
-                    <Label Grid.Column="1" Text="▼" FontSize="16" TextColor="#666666"
+                    <Label Grid.Column="1" Text="&#x25BC;" FontSize="16" TextColor="#666666"
                            VerticalOptions="Center" Margin="0,0,8,0" />
                 </Grid>
             </Border>
 
-            <!-- ═══ Preview del documento ═══ -->
+            <!-- Preview del documento -->
             <Frame BackgroundColor="White" BorderColor="#BDBDBD" Padding="10"
                    CornerRadius="6" MinimumHeightRequest="200">
                 <ScrollView HeightRequest="300">
-                    <Label x:Name="PreviewLabel" Text="Seleccioná un documento..."
+                    <Label x:Name="PreviewLabel" Text="Seleccion&#225; un documento..."
                            FontFamily="monospace" FontSize="11"
                            LineBreakMode="WordWrap" />
                 </ScrollView>
             </Frame>
 
-            <!-- ═══ Botones de acción ═══ -->
+            <!-- Botones de accion -->
             <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8">
                 <Button x:Name="BtnPreview" Text="Vista Previa" Grid.Column="0"
                         Clicked="OnVistaPreviewClicked" BackgroundColor="#4CAF50"
@@ -85,8 +66,13 @@
                         TextColor="White" CornerRadius="8" HeightRequest="44" FontSize="13" />
             </Grid>
 
+            <!-- Boton Reescanear (reemplazo del antiguo Reconectar) -->
+            <Button x:Name="BtnReescanear" Text="Reescanear" Clicked="OnReescanearClicked"
+                    BackgroundColor="#1565C0" TextColor="White" CornerRadius="6"
+                    HeightRequest="36" FontSize="12" Margin="0,0,0,12"
+                    IsVisible="{OnPlatform Android=True, iOS=False}" />
 
-            <!-- ═══ Mensaje de estado ═══ -->
+            <!-- Mensaje de estado -->
             <Label x:Name="MessageLabel" Text="" FontSize="12" TextColor="Gray"
                    HorizontalTextAlignment="Center" />
 

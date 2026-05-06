@@ -327,6 +327,6 @@ Uso interno / institucional.
 
 ## 📞 Contacto
 
-Equipo de arquitectura y desarrollo del Motor DSL.
+Fernando Rafael Filipuzzi — [Aplicada Streaming 2026](https://github.com/Aplicada-Streaming)
 
 ---

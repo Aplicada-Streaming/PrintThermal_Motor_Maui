@@ -289,4 +289,4 @@ MIT.
 
 ## 🤝 Contribución y contacto
 
-Equipo de arquitectura — UTN FRP TUP Aplicada 2025.
+Fernando Rafael Filipuzzi — [Aplicada Streaming 2026](https://github.com/Aplicada-Streaming)

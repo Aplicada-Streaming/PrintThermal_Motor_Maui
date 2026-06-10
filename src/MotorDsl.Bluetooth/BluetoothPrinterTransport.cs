@@ -14,12 +14,14 @@ namespace MotorDsl.Bluetooth;
 /// iOS lanza PlatformNotSupportedException porque no soporta Bluetooth clasico SPP.
 /// Solo escribe bytes — el retry y la orquestacion se manejan en ThermalPrinterService.
 /// </summary>
-public class BluetoothPrinterTransport : IThermalPrinterTransport
+public partial class BluetoothPrinterTransport : IThermalPrinterTransport
 {
 #if ANDROID
     private BluetoothSocket? _socket;
     private BluetoothAdapter? _bluetoothAdapter;
     private System.IO.Stream? _outputStream;
+    // Preparado para la deteccion de capacidades de la fase 2; en esta fase no se lee.
+    private System.IO.Stream? _inputStream;
 #endif
 
     private string? _lastDeviceAddress;
@@ -87,8 +89,9 @@ public class BluetoothPrinterTransport : IThermalPrinterTransport
 #if ANDROID
         try
         {
-            if (_socket != null && _socket.IsConnected)
-                await DisconnectAsync();
+            // Limpia cualquier socket/stream previo antes de abrir uno nuevo (reconexion).
+            // IsConnected queda en false hasta confirmar la conexion mas abajo.
+            InvalidateConnection();
 
             var device = _bluetoothAdapter!.GetRemoteDevice(deviceId)
                 ?? throw new Exception("No se pudo encontrar el dispositivo");
@@ -98,6 +101,7 @@ public class BluetoothPrinterTransport : IThermalPrinterTransport
 
             await Task.Run(() => _socket.Connect(), ct);
             _outputStream = _socket.OutputStream;
+            _inputStream = _socket.InputStream;
 
             IsConnected = true;
             _lastDeviceAddress = deviceId;
@@ -158,18 +162,41 @@ public class BluetoothPrinterTransport : IThermalPrinterTransport
         if (_outputStream == null)
             throw new InvalidOperationException("No hay una impresora conectada");
 
-        await Task.Delay(profile.InitDelayMs, ct);
-        var lines = SplitByLineFeed(data);
+        // Chunking de TAMANO FIJO sobre todo el buffer, independiente del contenido.
+        // El output escpos-bitmap contiene 0x0A arbitrarios en los datos de pixeles, asi
+        // que no se puede partir por LF. Puede bajarse a 128 para impresoras mas sensibles.
+        const int CHUNK_SIZE = 256;
 
-        foreach (var line in lines)
+        // Pacing de fallback acotado: se aplica UNA vez por bloque (no por byte), con
+        // un piso minimo de 1ms. Nada de delays gigantes derivados del tamano del buffer.
+        int fallbackDelayMs = Math.Max(profile.ByteDelayMs, 1);
+
+        try
         {
-            await _outputStream!.WriteAsync(line, 0, line.Length, ct);
-            await _outputStream.FlushAsync(ct);
-            int delayMs = GetDelayForLine(line, profile);
-            await Task.Delay(delayMs, ct);
-        }
+            await Task.Delay(profile.InitDelayMs, ct);
 
-        await Task.Delay(profile.FinalDelayMs, ct);
+            foreach (var bloque in ChunkBuffer(data, CHUNK_SIZE))
+            {
+                await _outputStream!.WriteAsync(bloque.Array!, bloque.Offset, bloque.Count, ct);
+                await _outputStream.FlushAsync(ct);
+                await Task.Delay(fallbackDelayMs, ct);
+            }
+
+            await Task.Delay(profile.FinalDelayMs, ct);
+        }
+        catch (System.IO.IOException)
+        {
+            // Socket roto (ej. "Broken pipe" por overrun de la impresora): invalida el
+            // estado para que ReconnectInternalAsync del servicio reconecte en el proximo
+            // intento, y relanza la excepcion original SIN envolver.
+            InvalidateConnection();
+            throw;
+        }
+        catch (Java.IO.IOException)
+        {
+            InvalidateConnection();
+            throw;
+        }
 #elif IOS
         await Task.CompletedTask;
         throw new PlatformNotSupportedException("iOS no soporta Bluetooth Classic SPP. Usar BLE o impresion por red.");
@@ -178,34 +205,25 @@ public class BluetoothPrinterTransport : IThermalPrinterTransport
 #endif
     }
 
-    private static int GetDelayForLine(byte[] line, PrinterProfile profile)
+#if ANDROID
+    /// <summary>
+    /// Invalida la conexion al fallar una escritura: marca IsConnected=false, descarta
+    /// streams y socket (con guardas null y swallow de errores internos, no lanza) y deja
+    /// todo en null. Asi ReconnectInternalAsync del servicio detecta IsConnected==false y
+    /// vuelve a conectar en el siguiente intento del retry.
+    /// </summary>
+    private void InvalidateConnection()
     {
-        if (line.Length == 0) return 20;
-        if (line.Length >= 2 && line[0] == 0x1D && line[1] == 0x28) return profile.QrDelayMs;
-        if (line.Length >= 2 && line[0] == 0x1D && line[1] == 0x76) return profile.ImageDelayMs;
-        if (line.Length >= 2 && line[0] == 0x1D && line[1] == 0x56) return profile.CutDelayMs;
-        if (line.Length >= 2 && line[0] == 0x1B && line[1] == 0x40) return profile.InitCommandDelayMs;
-        return profile.LineDelayMs + (line.Length * profile.ByteDelayMs);
+        IsConnected = false;
+
+        try { _outputStream?.Dispose(); } catch { /* swallow: ya estamos limpiando */ }
+        try { _inputStream?.Dispose(); } catch { /* swallow */ }
+        try { _socket?.Close(); } catch { /* swallow */ }
+        try { _socket?.Dispose(); } catch { /* swallow */ }
+
+        _outputStream = null;
+        _inputStream = null;
+        _socket = null;
     }
-
-    private static List<byte[]> SplitByLineFeed(byte[] data)
-    {
-        var lines = new List<byte[]>();
-        var current = new List<byte>();
-
-        foreach (byte b in data)
-        {
-            current.Add(b);
-            if (b == 0x0A)
-            {
-                lines.Add(current.ToArray());
-                current.Clear();
-            }
-        }
-
-        if (current.Count > 0)
-            lines.Add(current.ToArray());
-
-        return lines;
-    }
+#endif
 }

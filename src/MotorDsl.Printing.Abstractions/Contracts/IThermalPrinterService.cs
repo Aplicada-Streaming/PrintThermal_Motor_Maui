@@ -10,6 +10,16 @@ public interface IThermalPrinterService : INotifyPropertyChanged
     PrinterConnectionState ConnectionState { get; }
     string? LastError { get; }
 
+    // Capacidades de la impresora actualmente vinculada (delega en el transport activo);
+    // null si no hay transport o no se detectaron.
+    PrinterCapabilities? CurrentCapabilities { get; }
+
+    // Historial acotado de fallos de impresion recientes (mas nuevo al final).
+    IReadOnlyList<PrintFailureEntry> RecentFailures { get; }
+
+    // Limpia el historial de fallos.
+    void ClearFailures();
+
     event EventHandler<PrintErrorEventArgs>? ErrorOccurred;
     event EventHandler<DevicesDiscoveredEventArgs>? DevicesDiscovered;
 

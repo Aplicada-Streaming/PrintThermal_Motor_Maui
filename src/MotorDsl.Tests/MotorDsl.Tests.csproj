@@ -17,16 +17,18 @@
 		<ProjectReference Include="..\MotorDsl.Extensions\MotorDsl.Extensions.csproj" />
 		<ProjectReference Include="..\MotorDsl.Parser\MotorDsl.Parser.csproj" />
 		<ProjectReference Include="..\MotorDsl.Rendering\MotorDsl.Rendering.csproj" />
+		<ProjectReference Include="..\MotorDsl.Printing.Abstractions\MotorDsl.Printing.Abstractions.csproj" />
 	</ItemGroup>
 
 	<!--
-		ChunkBuffer es codigo puro de MotorDsl.Bluetooth, pero ese proyecto solo targetea
-		net10.0-android/net10.0-ios y no puede referenciarse desde este net10.0. Se enlaza
-		por fuente solo el archivo partial puro (sin dependencias de plataforma) para cubrirlo
-		con tests sin contaminar el paquete NuGet con un target net10.0.
+		ChunkBuffer y ClassifyStatusResponse son codigo puro de MotorDsl.Bluetooth, pero ese
+		proyecto solo targetea net10.0-android/net10.0-ios y no puede referenciarse desde este
+		net10.0. Se enlazan por fuente solo los archivos partial puros (sin dependencias de
+		plataforma) para cubrirlos con tests sin contaminar el paquete NuGet con un target net10.0.
 	-->
 	<ItemGroup>
 		<Compile Include="..\MotorDsl.Bluetooth\BluetoothPrinterTransport.Chunking.cs" Link="Linked\BluetoothPrinterTransport.Chunking.cs" />
+		<Compile Include="..\MotorDsl.Bluetooth\BluetoothPrinterTransport.Capabilities.cs" Link="Linked\BluetoothPrinterTransport.Capabilities.cs" />
 	</ItemGroup>
 
 	<ItemGroup>

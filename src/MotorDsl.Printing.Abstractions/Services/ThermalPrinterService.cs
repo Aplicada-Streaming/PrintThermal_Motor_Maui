@@ -21,6 +21,11 @@ public class ThermalPrinterService : IThermalPrinterService
     private PrinterConnectionState _connectionState = PrinterConnectionState.Disconnected;
     private string? _lastError;
 
+    // Ring buffer acotado de fallos de impresion (thread-safe via lock). No persiste a disco.
+    private const int MAX_FAILURES = 20;
+    private readonly object _failuresLock = new();
+    private readonly List<PrintFailureEntry> _failures = new();
+
     public bool IsConnected
     {
         get => _isConnected;
@@ -43,6 +48,18 @@ public class ThermalPrinterService : IThermalPrinterService
     {
         get => _lastError;
         private set => SetProperty(ref _lastError, value);
+    }
+
+    public PrinterCapabilities? CurrentCapabilities => _activeTransport?.Capabilities;
+
+    public IReadOnlyList<PrintFailureEntry> RecentFailures
+    {
+        get { lock (_failuresLock) { return _failures.ToArray(); } }
+    }
+
+    public void ClearFailures()
+    {
+        lock (_failuresLock) { _failures.Clear(); }
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -189,7 +206,12 @@ public class ThermalPrinterService : IThermalPrinterService
                 ErrorOccurred?.Invoke(this, new PrintErrorEventArgs(error));
                 var shouldRetry = await _errorHandler.HandleErrorAsync(error);
                 if (!shouldRetry || attempt >= retry.MaxRetries)
+                {
+                    // Se agotaron los intentos: registra UNA entrada en el historial (sin payload)
+                    // y propaga. No cambia la logica de envio ni de reconexion.
+                    RecordFailure(BuildFailureEntry(error, attempt, data?.Length ?? 0));
                     throw new Exception($"Print failed after {attempt} attempt(s): {error.Message}", ex);
+                }
                 _errorHandler.OnRetryAttempt(error);
                 int delayMs = retry.InitialDelayMs * (1 << (attempt - 1));
                 await Task.Delay(delayMs, ct);
@@ -205,6 +227,35 @@ public class ThermalPrinterService : IThermalPrinterService
         if (_activeTransport.IsConnected) return;
         try { await _activeTransport.ConnectAsync(CurrentDevice.Id, ct); }
         catch { /* silencio: el siguiente intento se encargara */ }
+    }
+
+    // Agrega una entrada al ring buffer; si supera MAX_FAILURES descarta la mas vieja.
+    // internal para poder testear la semantica del buffer sin pasar por el retry-loop.
+    internal void RecordFailure(PrintFailureEntry entry)
+    {
+        lock (_failuresLock)
+        {
+            _failures.Add(entry);
+            if (_failures.Count > MAX_FAILURES)
+                _failures.RemoveAt(0);
+        }
+    }
+
+    private PrintFailureEntry BuildFailureEntry(PrintError error, int attempts, int bytesLength)
+    {
+        var dev = CurrentDevice;
+        var caps = CurrentCapabilities ?? PrinterCapabilities.Unknown();
+        return new PrintFailureEntry(
+            Timestamp: DateTimeOffset.Now,
+            DeviceId: dev?.Id ?? "(unknown)",
+            DeviceName: dev?.Name ?? "(unknown)",
+            DeviceKind: dev?.Kind ?? "(unknown)",
+            Capabilities: caps,
+            ErrorType: error.Type.ToString(),
+            ErrorMessage: error.Message,
+            Attempts: attempts,
+            BytesLength: bytesLength,
+            RenderTarget: null);
     }
 
     private void SetProperty<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)

@@ -20,8 +20,10 @@ public partial class BluetoothPrinterTransport : IThermalPrinterTransport
     private BluetoothSocket? _socket;
     private BluetoothAdapter? _bluetoothAdapter;
     private System.IO.Stream? _outputStream;
-    // Preparado para la deteccion de capacidades de la fase 2; en esta fase no se lee.
+    // Stream de entrada usado por la deteccion de capacidades (DLE EOT, GS ( L, GS I).
     private System.IO.Stream? _inputStream;
+    // Capacidades detectadas al conectar; null hasta detectar, Unknown() tras invalidar.
+    private PrinterCapabilities? _capabilities;
 #endif
 
     private string? _lastDeviceAddress;
@@ -30,6 +32,12 @@ public partial class BluetoothPrinterTransport : IThermalPrinterTransport
     public string Kind => "bluetooth";
     public bool IsConnected { get; private set; }
     public PrinterDevice? CurrentDevice => _currentDevice;
+
+#if ANDROID
+    public PrinterCapabilities? Capabilities => _capabilities;
+#else
+    public PrinterCapabilities? Capabilities => null;
+#endif
 
     public BluetoothPrinterTransport()
     {
@@ -106,6 +114,12 @@ public partial class BluetoothPrinterTransport : IThermalPrinterTransport
             IsConnected = true;
             _lastDeviceAddress = deviceId;
             _currentDevice = new PrinterDevice(deviceId, device.Name ?? deviceId, "bluetooth", IsPaired: true);
+
+            // Deteccion de capacidades best-effort, tras tener socket + streams. NUNCA puede
+            // hacer fallar la conexion: ante cualquier excepcion, queda en Unknown y se continua.
+            try { _capabilities = await DetectCapabilitiesAsync(ct); }
+            catch { _capabilities = PrinterCapabilities.Unknown(); }
+
             return true;
         }
         catch (Exception ex)
@@ -224,6 +238,7 @@ public partial class BluetoothPrinterTransport : IThermalPrinterTransport
         _outputStream = null;
         _inputStream = null;
         _socket = null;
+        _capabilities = PrinterCapabilities.Unknown();
     }
 #endif
 }

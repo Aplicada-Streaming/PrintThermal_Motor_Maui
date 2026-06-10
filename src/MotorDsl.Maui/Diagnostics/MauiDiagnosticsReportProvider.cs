@@ -3,7 +3,6 @@ using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Text.RegularExpressions;
 using Microsoft.Maui.ApplicationModel;
 using Microsoft.Maui.Devices;
 using MotorDsl.Printing;
@@ -27,10 +26,6 @@ public class MauiDiagnosticsReportProvider : IDiagnosticsReportProvider
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
     };
 
-    private static readonly Regex s_macRegex = new(
-        @"^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$",
-        RegexOptions.Compiled);
-
     public MauiDiagnosticsReportProvider(IThermalPrinterService? printer = null)
     {
         _printer = printer;
@@ -39,14 +34,17 @@ public class MauiDiagnosticsReportProvider : IDiagnosticsReportProvider
     /// <inheritdoc />
     public DiagnosticsReport Build(string? notes = null, bool includePii = false)
     {
+        // El snapshot de impresora (con capabilities) y el historial de fallos (con el DeviceId
+        // enmascarado segun includePii) se arman en DiagnosticsBuilder, codigo puro y testeable.
         return new DiagnosticsReport(
             Libraries: ScanLibraries(),
             App: SnapshotApp(),
             Device: SnapshotDevice(),
-            Printer: SnapshotPrinter(includePii),
+            Printer: DiagnosticsBuilder.BuildPrinterSnapshot(_printer, includePii),
             Permissions: SnapshotPermissions(),
             CapturedAt: DateTimeOffset.Now,
-            Notes: notes);
+            Notes: notes,
+            Failures: DiagnosticsBuilder.BuildFailures(_printer, includePii));
     }
 
     private static IReadOnlyList<LibraryInfo> ScanLibraries()
@@ -132,48 +130,6 @@ public class MauiDiagnosticsReportProvider : IDiagnosticsReportProvider
                 "(no disponible)",
                 "(no disponible)");
         }
-    }
-
-    private PrinterInfoSnapshot? SnapshotPrinter(bool includePii)
-    {
-        try
-        {
-            if (_printer == null) return null;
-            var device = _printer.CurrentDevice;
-            if (device == null) return null;
-
-            var rawId = device.Id ?? string.Empty;
-            var displayId = includePii ? rawId : MaskMac(rawId);
-
-            return new PrinterInfoSnapshot(
-                Kind: device.Kind ?? "(unknown)",
-                Name: device.Name ?? "(unknown)",
-                Id: displayId,
-                ConnectionState: _printer.ConnectionState.ToString(),
-                ProfileName: "(unknown)",
-                PaperWidthChars: 0,
-                Capabilities: new Dictionary<string, object?>());
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    /// <summary>
-    /// Oculta los últimos 3 octetos si <paramref name="id"/> parece una MAC
-    /// (xx:xx:xx:xx:xx:xx). Si no, mantiene los primeros 4 caracteres y agrega
-    /// "...". Útil para evitar publicar MACs completas en reportes compartidos.
-    /// </summary>
-    private static string MaskMac(string id)
-    {
-        if (string.IsNullOrEmpty(id)) return string.Empty;
-        if (s_macRegex.IsMatch(id))
-        {
-            return id.Substring(0, 8) + "**:**:**";
-        }
-
-        return id.Length > 4 ? id.Substring(0, 4) + "..." : id;
     }
 
     private static PermissionsSnapshot? SnapshotPermissions()
@@ -265,6 +221,12 @@ public class MauiDiagnosticsReportProvider : IDiagnosticsReportProvider
             sb.AppendLine($"Profile: {report.Printer.ProfileName}");
             if (report.Printer.PaperWidthChars > 0)
                 sb.AppendLine($"PaperWidthChars: {report.Printer.PaperWidthChars}");
+            if (report.Printer.Capabilities.Count > 0)
+            {
+                sb.AppendLine("Capabilities:");
+                foreach (var kv in report.Printer.Capabilities)
+                    sb.AppendLine($"  {kv.Key}: {kv.Value}");
+            }
             sb.AppendLine();
         }
 
@@ -273,6 +235,19 @@ public class MauiDiagnosticsReportProvider : IDiagnosticsReportProvider
             sb.AppendLine("[PERMISOS]");
             foreach (var kv in report.Permissions.Statuses)
                 sb.AppendLine($"{kv.Key}: {kv.Value}");
+            sb.AppendLine();
+        }
+
+        if (report.Failures != null && report.Failures.Count > 0)
+        {
+            sb.AppendLine("[FALLOS RECIENTES]");
+            foreach (var f in report.Failures)
+            {
+                // Formato compacto por fallo: fecha, modelo/kind, tipo de error, intentos.
+                sb.AppendLine(
+                    $"- {f.Timestamp:yyyy-MM-dd HH:mm:ss} {f.DeviceName}/{f.DeviceKind} " +
+                    $"{f.ErrorType} (intentos: {f.Attempts}, bytes: {f.BytesLength})");
+            }
             sb.AppendLine();
         }
 
@@ -343,6 +318,14 @@ public class MauiDiagnosticsReportProvider : IDiagnosticsReportProvider
             children.Add(NewText($"Nombre: {report.Printer.Name}"));
             children.Add(NewText($"Id: {report.Printer.Id}"));
             children.Add(NewText($"Estado: {report.Printer.ConnectionState}"));
+            children.Add(NewText(separator));
+        }
+
+        // ── Fallos recientes: solo el resumen para no inflar el ticket ──
+        int failureCount = report.Failures?.Count ?? 0;
+        if (failureCount > 0)
+        {
+            children.Add(NewText($"Fallos recientes: {failureCount}", bold: true));
             children.Add(NewText(separator));
         }
 

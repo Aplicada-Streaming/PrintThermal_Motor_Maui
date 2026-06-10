@@ -65,4 +65,7 @@ public record DiagnosticsReport(
     PrinterInfoSnapshot? Printer,
     PermissionsSnapshot? Permissions,
     DateTimeOffset CapturedAt,
-    string? Notes = null);
+    string? Notes = null,
+    // Historial acotado de fallos de impresion recientes. Opcional para no romper
+    // llamadores existentes; null cuando no hay fallos registrados.
+    IReadOnlyList<PrintFailureEntry>? Failures = null);

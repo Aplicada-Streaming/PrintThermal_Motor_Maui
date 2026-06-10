@@ -182,7 +182,7 @@ public class Evaluator : IEvaluator
             return value.ToString() ?? "";
         });
 
-        return new ImageNode(resolvedSource, node.Width, node.Height, node.ImageType);
+        return new ImageNode(resolvedSource, node.Width, node.Height, node.ImageType, node.Role);
     }
 
     private DocumentNode? EvaluateConditionalNode(ConditionalNode node, object? data, List<string> warnings)

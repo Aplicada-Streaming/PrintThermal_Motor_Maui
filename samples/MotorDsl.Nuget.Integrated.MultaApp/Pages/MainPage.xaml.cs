@@ -3,6 +3,7 @@ using MotorDsl.Core.Contracts;
 using MotorDsl.Core.Models;
 using MotorDsl.Nuget.Integrated.MultaApp.Templates;
 using MotorDsl.Printing;
+using MotorDsl.Rendering;
 
 #if ANDROID
 using Android;
@@ -19,17 +20,27 @@ public partial class MainPage : ContentPage
     private readonly IDocumentEngine _engine;
     private readonly IThermalPrinterService _printer;
     private readonly IDiagnosticsReportProvider _diagnostics;
+    private readonly IBitmapRasterizer _rasterizer;
+
+    // Keycode del logo en NV. Configurable: una const por default. El recall lo usa por keycode
+    // (familia GS ( L); para FS el define crea la imagen #1 y el recall usa ese indice.
+    private const int LOGO_KEYCODE = 32;
+
+    // La app recuerda si aprovisiono el logo en ESTA sesion (la libreria solo da define/clear/
+    // query + recall; la politica de cuando re-aprovisionar es de la app).
+    private bool _logoProvisioned;
 
     // Documentos disponibles: cada entrada es un JSON integrado completo (formato "integrated").
     // No hay diccionario de datos — todos los valores ya están resueltos en el JSON.
     private readonly (string Name, string IntegratedJson)[] _documents;
 
-    public MainPage(IDocumentEngine engine, IThermalPrinterService printer, IDiagnosticsReportProvider diagnostics)
+    public MainPage(IDocumentEngine engine, IThermalPrinterService printer, IDiagnosticsReportProvider diagnostics, IBitmapRasterizer rasterizer)
     {
         InitializeComponent();
         _engine = engine;
         _printer = printer;
         _diagnostics = diagnostics;
+        _rasterizer = rasterizer;
 
         _documents = new[]
         {
@@ -226,11 +237,34 @@ public partial class MainPage : ContentPage
         try
         {
             // ── 1. Render SIEMPRE primero (diagnóstico independiente de impresora) ──
-            ShowMessage("Generando ESC/POS...");
-            var profile = new DeviceProfile("58HB6", 32, "escpos-bitmap");
-            profile.SetCapability("supports_bitmap", true);
-            profile.SetCapability("bitmap_max_width_px", 320);
-            profile.SetCapability("bitmap_binarization_threshold", 128);
+            // Conectar -> leer capacidades -> elegir estrategia (la libreria recomienda, la app
+            // decide). Con NV soportado Y logo aprovisionado: "escpos" (logo por recall, firmas
+            // inline). Si no: "escpos-bitmap" (rasteriza todo). Sin conexion, caps es null ->
+            // bitmap, por eso el render sigue funcionando offline.
+            var caps = _printer.CurrentCapabilities;
+            var target = PrintStrategySelector.RecommendTarget(caps, docNeedsGraphics: true);
+
+            DeviceProfile profile;
+            if (target == "escpos" && _logoProvisioned && caps?.NvGraphicsKind != null)
+            {
+                profile = new DeviceProfile("58HB6", 32, "escpos");
+                // Para FS el define crea la imagen #1; el recall usa ese indice. Para GS ( L, el keycode.
+                int recallKey = caps.NvGraphicsKind == "fs" ? 1 : LOGO_KEYCODE;
+                profile.SetCapability("nv_logo_keycode", recallKey);
+                profile.SetCapability("nv_logo_kind", caps.NvGraphicsKind);
+                profile.SetCapability("supports_bitmap", true); // firmas inline (signature)
+                profile.SetCapability("bitmap_max_width_px", 320);
+                profile.SetCapability("bitmap_binarization_threshold", 128);
+                ShowMessage($"Generando ESC/POS nativo (logo NV {caps.NvGraphicsKind})...");
+            }
+            else
+            {
+                profile = new DeviceProfile("58HB6", 32, "escpos-bitmap");
+                profile.SetCapability("supports_bitmap", true);
+                profile.SetCapability("bitmap_max_width_px", 320);
+                profile.SetCapability("bitmap_binarization_threshold", 128);
+                ShowMessage("Generando ESC/POS bitmap completo...");
+            }
             var result = _engine.Render(doc, profile);
 
             if (!result.IsSuccessful || result.Output is not byte[] bytes)
@@ -268,6 +302,53 @@ public partial class MainPage : ContentPage
                       $"STACK: {ex.StackTrace?.Replace("\n", " | ")?.Substring(0, Math.Min(200, ex.StackTrace?.Length ?? 0))}";
             MessageLabel.Text = $"{DateTime.Now:HH:mm:ss} — {msg}";
             System.Console.WriteLine($"[MULTA-ERROR] {msg}");
+        }
+    }
+
+    // ─── Logo NV: aprovisionar / limpiar ───
+
+    private async void OnConfigurarLogoClicked(object? sender, EventArgs e)
+    {
+        try
+        {
+            if (!_printer.IsConnected)
+            {
+                ShowMessage("Conectá una impresora antes de configurar el logo.");
+                return;
+            }
+
+            // Rasteriza el logo de ejemplo (via el IBitmapRasterizer que ya inyecta la app) y lo
+            // arma como GS v 0 (el formato inline que el transport acepta para aprovisionar NV).
+            var rast = _rasterizer.Rasterize("data:image/bmp;base64," + MultaIntegratedDsl.LogoBase64, 320);
+            var gsV0 = EscPosCommands.BuildRasterImageGsV0(rast.Bits, rast.WidthBytes, rast.HeightDots);
+
+            var result = await _printer.ProvisionLogoAsync(gsV0, LOGO_KEYCODE);
+            _logoProvisioned = result.Success;
+            ShowMessage($"Logo NV: Success={result.Success} Kind={result.Kind ?? "-"} — {result.Message}");
+        }
+        catch (Exception ex)
+        {
+            _logoProvisioned = false;
+            ShowMessage($"Error configurando logo: {ex.Message}");
+        }
+    }
+
+    private async void OnLimpiarLogoClicked(object? sender, EventArgs e)
+    {
+        try
+        {
+            if (!_printer.IsConnected)
+            {
+                ShowMessage("Conectá una impresora antes de limpiar el logo.");
+                return;
+            }
+            await _printer.ClearLogoAsync(LOGO_KEYCODE);
+            _logoProvisioned = false;
+            ShowMessage("Logo NV limpiado.");
+        }
+        catch (Exception ex)
+        {
+            ShowMessage($"Error limpiando logo: {ex.Message}");
         }
     }
 

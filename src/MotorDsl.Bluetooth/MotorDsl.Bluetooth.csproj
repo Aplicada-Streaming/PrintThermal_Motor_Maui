@@ -27,7 +27,6 @@
 	-->
 	<PropertyGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
 		<AndroidLdFlags>-Wl,-z,max-page-size=16384</AndroidLdFlags>
-		<RuntimeIdentifiers>android-arm;android-arm64;android-x86;android-x64</RuntimeIdentifiers>
 	</PropertyGroup>
 
 	<ItemGroup>

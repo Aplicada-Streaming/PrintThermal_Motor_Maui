@@ -62,6 +62,20 @@ public class ThermalPrinterService : IThermalPrinterService
         lock (_failuresLock) { _failures.Clear(); }
     }
 
+    public async Task<NvLogoResult> ProvisionLogoAsync(byte[] gsV0Bytes, int keycode, CancellationToken ct = default)
+    {
+        var transport = _activeTransport;
+        if (transport == null || !IsConnected)
+            return new NvLogoResult(false, null, "no conectado");
+        return await transport.ProvisionLogoAsync(gsV0Bytes, keycode, ct);
+    }
+
+    public Task<bool> IsLogoProvisionedAsync(int keycode, CancellationToken ct = default)
+        => _activeTransport?.IsLogoProvisionedAsync(keycode, ct) ?? Task.FromResult(false);
+
+    public Task ClearLogoAsync(int keycode, CancellationToken ct = default)
+        => _activeTransport?.ClearLogoAsync(keycode, ct) ?? Task.CompletedTask;
+
     public event PropertyChangedEventHandler? PropertyChanged;
     public event EventHandler<PrintErrorEventArgs>? ErrorOccurred;
     public event EventHandler<DevicesDiscoveredEventArgs>? DevicesDiscovered;

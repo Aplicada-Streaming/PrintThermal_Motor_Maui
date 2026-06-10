@@ -60,12 +60,25 @@ public class EscPosRenderer : IRenderer
                         continue;
                     }
 
-                    // Bitmap image — emit GS v 0 si hay rasterizador, sino placeholder
+                    // Bitmap image — ruteo por rol (logo NV recall / inline). El renderer NO conoce
+                    // el transport ni las capabilities: solo lee del DeviceProfile lo que la app seteo.
                     if (layoutInfo.DeviceMetadata.TryGetValue("is_bitmap", out var bmpFlag) && bmpFlag is true)
                     {
                         var source = layoutInfo.DeviceMetadata.TryGetValue("bitmap_source", out var src)
                             ? src?.ToString() ?? ""
                             : "";
+                        var role = layoutInfo.DeviceMetadata.TryGetValue("image_role", out var rv)
+                            ? rv?.ToString()
+                            : null;
+
+                        // Logo + profile con nv_logo_keycode -> recall NV (pocos bytes), no se rasteriza.
+                        // Las firmas (signature) y cualquier otra imagen van SIEMPRE inline (GS v 0).
+                        if (role == "logo" && profile.GetCapability("nv_logo_keycode") != null)
+                        {
+                            EmitNvLogoRecall(buffer, profile);
+                            continue;
+                        }
+
                         EmitBitmap(buffer, source, profile, _rasterizer);
                         continue;
                     }
@@ -196,17 +209,9 @@ public class EscPosRenderer : IRenderer
             int bytesPerRow = rasterized.WidthBytes;
             int alto = rasterized.HeightDots;
 
-            // 4. Construir GS v 0 (0x1D 0x76 0x30 0x00 xL xH yL yH datos...)
+            // 4. Construir GS v 0 (0x1D 0x76 0x30 0x00 xL xH yL yH datos...) via builder compartido
             buffer.AddRange(EscPosCommands.AlignCenter);
-            buffer.Add(0x1D); // GS
-            buffer.Add(0x76); // v
-            buffer.Add(0x30); // 0
-            buffer.Add(0x00); // m = normal density
-            buffer.Add((byte)(bytesPerRow & 0xFF));  // xL
-            buffer.Add((byte)(bytesPerRow >> 8));    // xH
-            buffer.Add((byte)(alto & 0xFF));         // yL
-            buffer.Add((byte)(alto >> 8));           // yH
-            buffer.AddRange(rasterized.Bits);
+            buffer.AddRange(EscPosCommands.BuildRasterImageGsV0(rasterized.Bits, bytesPerRow, alto));
             buffer.AddRange(EscPosCommands.LineFeed);
             buffer.AddRange(EscPosCommands.AlignLeft);
         }
@@ -216,5 +221,24 @@ public class EscPosRenderer : IRenderer
             buffer.AddRange(Encoding.ASCII.GetBytes("[BITMAP]"));
             buffer.Add(0x0A);
         }
+    }
+
+    /// <summary>
+    /// Emite el comando de recall del logo NV segun la familia que la app dejo en el profile:
+    /// "fs" -> FS p (NV bit image por numero); cualquier otra ("gsl" o no seteada) -> GS ( L
+    /// recall por keycode. El renderer no conoce el transport: solo lee nv_logo_keycode y
+    /// nv_logo_kind del DeviceProfile.
+    /// </summary>
+    private static void EmitNvLogoRecall(List<byte> buffer, DeviceProfile profile)
+    {
+        int keycode = Convert.ToInt32(profile.GetCapability("nv_logo_keycode"));
+        var kind = profile.GetCapability("nv_logo_kind")?.ToString();
+
+        buffer.AddRange(EscPosCommands.AlignCenter);
+        buffer.AddRange(kind == "fs"
+            ? EscPosCommands.RecallNvBitImageFsP(keycode)
+            : EscPosCommands.RecallNvGraphicsGsL(keycode));
+        buffer.AddRange(EscPosCommands.LineFeed);
+        buffer.AddRange(EscPosCommands.AlignLeft);
     }
 }

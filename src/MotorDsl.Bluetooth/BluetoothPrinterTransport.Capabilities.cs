@@ -76,4 +76,27 @@ public partial class BluetoothPrinterTransport
             _ => (true, true)                      // Unknown: degradar desde este bloque en adelante
         };
     }
+
+    /// <summary>
+    /// Parsea el header fijo de un comando GS v 0 (0x1D 0x76 0x30 m xL xH yL yH [bits]) y extrae
+    /// (widthBytes, heightDots, bits). Formato fijo: parseo trivial. Devuelve null si el header
+    /// no matchea o no hay suficientes bytes de datos. Pura y testeable.
+    /// </summary>
+    internal static (int widthBytes, int heightDots, byte[] bits)? ParseGsV0(byte[] data)
+    {
+        if (data is null || data.Length < 8) return null;
+        if (data[0] != 0x1D || data[1] != 0x76 || data[2] != 0x30) return null;
+        // data[3] = m (densidad), no se usa para reconstruir el raster.
+
+        int widthBytes = data[4] | (data[5] << 8);
+        int heightDots = data[6] | (data[7] << 8);
+        if (widthBytes <= 0 || heightDots <= 0) return null;
+
+        int expected = widthBytes * heightDots;
+        if (data.Length - 8 < expected) return null; // datos insuficientes
+
+        var bits = new byte[expected];
+        Array.Copy(data, 8, bits, 0, expected);
+        return (widthBytes, heightDots, bits);
+    }
 }

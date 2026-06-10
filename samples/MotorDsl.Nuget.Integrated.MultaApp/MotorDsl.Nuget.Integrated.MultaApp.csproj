@@ -69,15 +69,20 @@
 		<MauiAsset Include="Resources\Raw\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
 	</ItemGroup>
 
-	<!-- NuGet packages (instead of ProjectReference) — validates published packages -->
+	<!--
+		ProjectReferences locales: la fase 4 usa API aun no publicada (ProvisionLogoAsync,
+		CurrentCapabilities, PrintStrategySelector, role de imagen). Repuntado desde los
+		PackageReference NuGet 1.0.* para compilar contra el codigo local de las 4 fases.
+		Volver a NuGet cuando se republiquen los paquetes.
+	-->
 	<ItemGroup>
-		<PackageReference Include="MotorDsl.Core" Version="1.0.*" />
-		<PackageReference Include="MotorDsl.Parser" Version="1.0.*" />
-		<PackageReference Include="MotorDsl.Rendering" Version="1.0.*" />
-		<PackageReference Include="MotorDsl.Extensions" Version="1.0.*" />
-		<PackageReference Include="MotorDsl.Printing.Abstractions" Version="1.0.*" />
-		<PackageReference Include="MotorDsl.Bluetooth" Version="1.0.*" />
-		<PackageReference Include="MotorDsl.Maui" Version="1.0.*" />
+		<ProjectReference Include="..\..\src\MotorDsl.Core\MotorDsl.Core.csproj" />
+		<ProjectReference Include="..\..\src\MotorDsl.Parser\MotorDsl.Parser.csproj" />
+		<ProjectReference Include="..\..\src\MotorDsl.Rendering\MotorDsl.Rendering.csproj" />
+		<ProjectReference Include="..\..\src\MotorDsl.Extensions\MotorDsl.Extensions.csproj" />
+		<ProjectReference Include="..\..\src\MotorDsl.Printing.Abstractions\MotorDsl.Printing.Abstractions.csproj" />
+		<ProjectReference Include="..\..\src\MotorDsl.Bluetooth\MotorDsl.Bluetooth.csproj" />
+		<ProjectReference Include="..\..\src\MotorDsl.Maui\MotorDsl.Maui.csproj" />
 	</ItemGroup>
 
 	<ItemGroup>

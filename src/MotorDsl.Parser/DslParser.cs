@@ -288,6 +288,11 @@ public class DslParser : IDslParser
             ? typeToken.GetString()
             : null;
 
-        return new ImageNode(source, width, height, imageType);
+        // Rol opcional ("logo" | "signature") para el ruteo de NV recall / inline.
+        var role = nodeToken.TryGetProperty("role", out var roleToken)
+            ? roleToken.GetString()
+            : null;
+
+        return new ImageNode(source, width, height, imageType, role);
     }
 }

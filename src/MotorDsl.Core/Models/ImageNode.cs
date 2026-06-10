@@ -29,18 +29,26 @@ public class ImageNode : DocumentNode
     public string? ImageType { get; set; }
 
     /// <summary>
+    /// Rol opcional de la imagen en el documento: "logo" | "signature". Default null (imagen
+    /// inline normal). El logo puede salir por recall NV; las firmas van siempre inline.
+    /// </summary>
+    public string? Role { get; set; }
+
+    /// <summary>
     /// Constructor for image nodes.
     /// </summary>
     /// <param name="source">Image source (URL, path, or encoded data)</param>
     /// <param name="width">Width in pixels</param>
     /// <param name="height">Height in pixels</param>
     /// <param name="imageType">Image type identifier</param>
-    public ImageNode(string source, int? width = null, int? height = null, string? imageType = null)
+    /// <param name="role">Rol opcional: "logo" | "signature"</param>
+    public ImageNode(string source, int? width = null, int? height = null, string? imageType = null, string? role = null)
         : base("image")
     {
         Source = source;
         Width = width;
         Height = height;
         ImageType = imageType;
+        Role = role;
     }
 }

@@ -28,4 +28,10 @@ public interface IThermalPrinterService : INotifyPropertyChanged
     Task DisconnectAsync();
     Task<bool> ReconnectAsync(CancellationToken ct = default);
     Task SendBytesAsync(byte[] data, PrinterProfile? profile = null, PrintRetryOptions? retry = null, CancellationToken ct = default);
+
+    // Aprovisionamiento de logo NV (delega en el transport activo). Si no hay transport o no
+    // esta conectado, ProvisionLogoAsync devuelve NvLogoResult(false, ...).
+    Task<NvLogoResult> ProvisionLogoAsync(byte[] gsV0Bytes, int keycode, CancellationToken ct = default);
+    Task<bool> IsLogoProvisionedAsync(int keycode, CancellationToken ct = default);
+    Task ClearLogoAsync(int keycode, CancellationToken ct = default);
 }

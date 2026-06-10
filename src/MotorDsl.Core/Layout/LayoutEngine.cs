@@ -153,6 +153,10 @@ public class LayoutEngine : ILayoutEngine
                 layoutInfo.DeviceMetadata["is_bitmap"] = true;
                 layoutInfo.DeviceMetadata["bitmap_source"] = imageNode.Source;
                 layoutInfo.DeviceMetadata["bitmap_width"] = imageNode.Width ?? profile.Width;
+                // Propaga el rol ("logo"|"signature") para el ruteo de NV recall / inline en el
+                // renderer. Si no se especifica, no se setea (comportamiento actual intacto).
+                if (!string.IsNullOrEmpty(imageNode.Role))
+                    layoutInfo.DeviceMetadata["image_role"] = imageNode.Role;
             }
         }
         else

@@ -1,8 +1,16 @@
 using System.ComponentModel;
+using MotorDsl.Core.Contracts;
 using MotorDsl.Core.Models;
 using MotorDsl.Printing;
 
 namespace MotorDsl.Tests;
+
+/// <summary>Rasterizador fake determinista para tests del renderer: 2 bytes/fila x 2 dots.</summary>
+internal sealed class FakeRasterizer : IBitmapRasterizer
+{
+    public RasterizedImage Rasterize(string source, int widthPixels)
+        => new(new byte[] { 0xAA, 0xBB, 0xCC, 0xDD }, widthBytes: 2, heightDots: 2);
+}
 
 /// <summary>Transport fake para tests del servicio: opcionalmente lanza al escribir.</summary>
 internal sealed class FakeTransport : IThermalPrinterTransport
@@ -61,4 +69,11 @@ internal sealed class FakePrinterService : IThermalPrinterService
     public Task<bool> ReconnectAsync(CancellationToken ct = default) => throw new NotImplementedException();
     public Task SendBytesAsync(byte[] data, PrinterProfile? profile = null, PrintRetryOptions? retry = null, CancellationToken ct = default)
         => throw new NotImplementedException();
+
+    public Task<NvLogoResult> ProvisionLogoAsync(byte[] gsV0Bytes, int keycode, CancellationToken ct = default)
+        => Task.FromResult(new NvLogoResult(false, null, "fake"));
+    public Task<bool> IsLogoProvisionedAsync(int keycode, CancellationToken ct = default)
+        => Task.FromResult(false);
+    public Task ClearLogoAsync(int keycode, CancellationToken ct = default)
+        => Task.CompletedTask;
 }

@@ -40,6 +40,13 @@ public static class MauiProgram
             })
             .AddMotorDslMaui();
 
+        // Renderer "escpos" nativo CON rasterizer: asi las firmas (role=signature) salen inline
+        // (GS v 0) mientras el logo (role=logo) sale por recall NV. El RendererRegistry reemplaza
+        // por Target, por lo que este pisa al "escpos" sin rasterizer que registra el core.
+        builder.Services.AddSingleton<MotorDsl.Core.Contracts.IRenderer>(sp =>
+            new MotorDsl.Rendering.EscPosRenderer(
+                sp.GetRequiredService<MotorDsl.Core.Contracts.IBitmapRasterizer>()));
+
         // Transport Bluetooth (Android Classic SPP)
         builder.Services.AddBluetoothPrinterTransport();
 

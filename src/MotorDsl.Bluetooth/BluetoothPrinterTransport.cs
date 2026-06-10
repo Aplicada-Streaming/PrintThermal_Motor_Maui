@@ -20,8 +20,11 @@ public partial class BluetoothPrinterTransport : IThermalPrinterTransport
     private BluetoothSocket? _socket;
     private BluetoothAdapter? _bluetoothAdapter;
     private System.IO.Stream? _outputStream;
-    // Stream de entrada usado por la deteccion de capacidades (DLE EOT, GS ( L, GS I).
+    // Stream de entrada usado por la deteccion de capacidades y el flow control por status.
     private System.IO.Stream? _inputStream;
+    // InputStream Java subyacente: permite Available() para gatear los reads y no bloquear.
+    // Null si no se pudo capturar; en ese caso el status degrada a pacing fijo.
+    private Java.IO.InputStream? _javaInputStream;
     // Capacidades detectadas al conectar; null hasta detectar, Unknown() tras invalidar.
     private PrinterCapabilities? _capabilities;
 #endif
@@ -110,6 +113,9 @@ public partial class BluetoothPrinterTransport : IThermalPrinterTransport
             await Task.Run(() => _socket.Connect(), ct);
             _outputStream = _socket.OutputStream;
             _inputStream = _socket.InputStream;
+            // Capturamos el InputStream Java subyacente para poder usar Available() y leer SIN
+            // bloquear (gating por bytes disponibles). Si no se puede, el status degrada solo.
+            _javaInputStream = (_inputStream as Android.Runtime.InputStreamInvoker)?.BaseInputStream;
 
             IsConnected = true;
             _lastDeviceAddress = deviceId;
@@ -185,15 +191,46 @@ public partial class BluetoothPrinterTransport : IThermalPrinterTransport
         // un piso minimo de 1ms. Nada de delays gigantes derivados del tamano del buffer.
         int fallbackDelayMs = Math.Max(profile.ByteDelayMs, 1);
 
+        // Flow control por status SOLO si la impresora reporto feedback en la deteccion (fase 2).
+        // LIMITE HONESTO: DLE EOT da liveness/papel/error en tiempo real, NO bytes libres del
+        // buffer. No es flow control perfecto: gatea bloques por online/listo, detecta caidas
+        // antes de escribir a ciegas y falla claro ante papel/tapa. Donde no hay feedback (o si
+        // el status se vuelve ilegible) degrada al pacing fijo de fase 1, sin abortar.
+        bool statusGating = Capabilities?.StatusFeedback == CapabilitySupport.Supported;
+        bool degradedPacing = false;
+
         try
         {
+            // Fast-fail de hardware antes del primer bloque (papel/tapa). Lanza
+            // PrinterHardwareException (clasificada como Hardware -> el handler NO reintenta).
+            // Va dentro del try: una IOException aca invalida+reconecta como en fase 1; la
+            // PrinterHardwareException no es IOException, asi que sube limpia sin invalidar.
+            if (statusGating)
+                await CheckHardwareFastFailAsync(ct);
+
             await Task.Delay(profile.InitDelayMs, ct);
 
+            int chunkIndex = 0;
             foreach (var bloque in ChunkBuffer(data, CHUNK_SIZE))
             {
+                bool applyFixedPacing = true;
+
+                if (statusGating && (chunkIndex % POLL_EVERY_N_CHUNKS == 0))
+                {
+                    // Una vez degradado no se vuelve a consultar el status en ESTE envio.
+                    PrinterStatus outcome = degradedPacing
+                        ? PrinterStatus.Unknown
+                        : await WaitUntilReadyAsync(ct);
+                    (degradedPacing, applyFixedPacing) = NextPacingDecision(degradedPacing, outcome);
+                }
+
                 await _outputStream!.WriteAsync(bloque.Array!, bloque.Offset, bloque.Count, ct);
                 await _outputStream.FlushAsync(ct);
-                await Task.Delay(fallbackDelayMs, ct);
+
+                if (applyFixedPacing)
+                    await Task.Delay(fallbackDelayMs, ct);
+
+                chunkIndex++;
             }
 
             await Task.Delay(profile.FinalDelayMs, ct);
@@ -237,6 +274,7 @@ public partial class BluetoothPrinterTransport : IThermalPrinterTransport
 
         _outputStream = null;
         _inputStream = null;
+        _javaInputStream = null;
         _socket = null;
         _capabilities = PrinterCapabilities.Unknown();
     }

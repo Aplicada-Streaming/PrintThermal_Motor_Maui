@@ -54,34 +54,31 @@ Evolucionar la arquitectura del motor hacia un modelo de **proveedores inyectabl
 
 ### Proveedores configurables (TK-27, TK-28, TK-29)
 
-* Tres nuevas interfaces en `MotorDsl.Core/Contracts`:
+* Tres nuevas interfaces en `MotorDsl.Core.Contracts` (los contratos NO incluyen `Add`; ese método es API de las clases In-Memory):
 
 ```csharp
 public interface ITemplateProvider
 {
     string? GetTemplate(string templateId);
     IEnumerable<string> GetAvailableTemplateIds();
-    void Add(string templateId, string dslContent);
 }
 
 public interface IDataProvider
 {
     IDictionary<string, object>? GetData(string dataKey);
-    void Add(string dataKey, IDictionary<string, object> data);
 }
 
 public interface IDeviceProfileProvider
 {
     DeviceProfile? GetProfile(string name);
     IEnumerable<DeviceProfile> GetAll();
-    void Add(DeviceProfile profile);
 }
 ```
 
-* Tres implementaciones default en `MotorDsl.Core`:
-  * `InMemoryTemplateProvider` — diccionario `<string, string>`
-  * `InMemoryDataProvider` — diccionario `<string, IDictionary<string, object>>`
-  * `InMemoryDeviceProfileProvider` — diccionario `<string, DeviceProfile>`
+* Tres implementaciones default en `MotorDsl.Core.Providers` (exponen además el método `Add(...)` para alimentar el diccionario interno):
+  * `InMemoryTemplateProvider` — diccionario `<string, string>` + `void Add(string templateId, string dslContent)`
+  * `InMemoryDataProvider` — diccionario `<string, IDictionary<string, object>>` + `void Add(string dataKey, IDictionary<string, object> data)`
+  * `InMemoryDeviceProfileProvider` — diccionario `<string, DeviceProfile>` + `void Add(DeviceProfile profile)`
 
 * Principio: la librería define contratos, el cliente provee la implementación.
 * Si el cliente no registra un proveedor personalizado, se usa el default In-Memory.
@@ -99,8 +96,8 @@ services.AddMotorDslEngine()
     })
     .AddProfiles(profiles =>
     {
-        profiles.Add(new DeviceProfile { Name = "58mm", Width = 32, RenderTarget = "escpos" });
-        profiles.Add(new DeviceProfile { Name = "80mm", Width = 48, RenderTarget = "escpos" });
+        profiles.Add(new DeviceProfile("58mm", 32, "escpos"));
+        profiles.Add(new DeviceProfile("80mm", 48, "escpos"));
     });
 ```
 
@@ -158,25 +155,22 @@ Medialunas        6      $90.00
 
 ### QR básico en EscPosRenderer (TK-34)
 
-* Implementar generación de QR code usando comandos ESC/POS nativos:
+* Implementar generación de QR code usando comandos ESC/POS nativos (`GS ( k`). Tabla **esquemática** — los subcomandos realmente emitidos por `EscPosRenderer` son:
 
-| Comando | Hex | Descripción |
+| Subcomando (`EscPosCommands`) | Hex | Descripción |
 |---------|-----|-------------|
-| GS ( k | `1D 28 6B` | Función de código QR |
-| Fn 165 | Model 2 | Seleccionar modelo QR |
-| Fn 167 | Tamaño módulo | Tamaño del punto (3-8) |
-| Fn 180 | Datos | Almacenar datos QR |
-| Fn 181 | Imprimir | Imprimir QR almacenado |
+| QrSetSize3 | `1D 28 6B 03 00 31 43 03` | Tamaño de módulo (size 3) |
+| QrSetErrorM | `1D 28 6B 03 00 31 45 33` | Nivel de corrección de errores (M) |
+| (store, manual) | `1D 28 6B ll lh 31 50 30` | Almacenar datos QR (`31 50 30`) |
+| QrPrint | `1D 28 6B 03 00 31 51 30` | Imprimir QR almacenado (`31 51 30`) |
 
-* Secuencia completa:
-  1. `GS ( k` — seleccionar modelo (Model 2)
-  2. `GS ( k` — definir tamaño de módulo
-  3. `GS ( k` — nivel de corrección de errores (L/M/Q/H)
-  4. `GS ( k` — almacenar datos
-  5. `GS ( k` — imprimir QR code
+* Secuencia real:
+  1. `GS ( k` — tamaño de módulo (size 3, `QrSetSize3`)
+  2. `GS ( k` — nivel de corrección de errores (M, `QrSetErrorM`)
+  3. `GS ( k` — almacenar datos: `1D 28 6B ll lh 31 50 30` + datos (construido manualmente)
+  4. `GS ( k` — imprimir QR (`31 51 30`, `QrPrint`)
 
-* Tamaño de módulo configurable vía estilo del nodo o perfil
-* Datos QR desde el contenido del TextNode con type="qr" o nodo dedicado
+* Datos QR desde el contenido del nodo `image` con `imageType="qrcode"` (metadata `is_qr`/`qr_data` del LayoutEngine)
 
 ---
 

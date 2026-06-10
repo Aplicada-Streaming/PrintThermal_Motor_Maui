@@ -87,7 +87,7 @@ var ticket = await httpClient.GetFromJsonAsync<TicketDto>(
 byte[] rawBytes = Convert.FromBase64String(ticket.ContentB64);
 
 // 3. Enviar directamente a la impresora (ya son comandos ESC/POS)
-await printerService.SendRawAsync(rawBytes);
+await printerService.SendBytesAsync(rawBytes);
 ```
 
 > **Nota:** Los bytes guardados ya contienen los comandos ESC/POS completos. No es necesario volver a pasar por el motor de renderizado.
@@ -153,7 +153,7 @@ await File.WriteAllBytesAsync(tempPath, pdfBytes);
 │         ▼                                            │
 │   GET /api/tickets/{id}                              │
 │         │                                            │
-│         ├──► Reimprimir (SendRawAsync)               │
+│         ├──► Reimprimir (SendBytesAsync)             │
 │         └──► Enviar PDF por email                    │
 └─────────────────────────────────────────────────────┘
 ```

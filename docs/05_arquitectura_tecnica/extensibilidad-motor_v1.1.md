@@ -251,7 +251,8 @@ elige el transport correcto según `device.Kind`.
 ```csharp
 public interface IDataResolver
 {
-    object Resolve(object data, string path);
+    object? Resolve(object? data, string path);
+    IEnumerable<object> ResolveCollection(object? data, string path);
 }
 ```
 
@@ -264,7 +265,8 @@ Estrategias: reflection, JSON path, expression-based, custom mapping.
 ```csharp
 public interface IDeviceProfileProvider
 {
-    DeviceProfile GetProfile(string name);
+    DeviceProfile? GetProfile(string name);
+    IEnumerable<DeviceProfile> GetAll();
 }
 ```
 

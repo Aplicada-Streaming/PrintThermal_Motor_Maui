@@ -187,12 +187,15 @@ Representación estructurada lista para renderizado.
 
 ## 5.7 Renderizado
 
-El motor genera una salida específica según el formato solicitado:
+El motor genera una salida específica según el target de renderizado solicitado. Los targets reales de `Render` son:
 
-* ESC/POS
-* Texto plano
-* Vista previa UI
-* PDF (futuro)
+* `escpos`
+* `escpos-bitmap`
+* `text` (texto plano)
+* `pdf`
+* `raster-preview` (vista previa pixelada en PNG)
+
+La **vista previa visual** en pantalla no es un target de `Render`: se obtiene con `RenderLayout(...)` que devuelve un `LayoutedDocument` (consumido por el control MAUI `MauiDocumentPreview`), o con el target `raster-preview` (PNG consumido por `MauiRasterPreview`).
 
 **Ejemplo conceptual:**
 
@@ -311,7 +314,7 @@ El motor debe comunicar claramente los errores al consumidor:
 | CU-29       | Extender motor con renderizadores |
 | CU-06       | Renderizar a ESC/POS              |
 | CU-07       | Renderizar a texto plano          |
-| CU-08       | Renderizar vista previa UI        |
+| CU-08       | Renderizar vista previa UI (se obtiene con `RenderLayout`/`LayoutedDocument` o el target `raster-preview`, no con un renderizador "ui") |
 
 ---
 

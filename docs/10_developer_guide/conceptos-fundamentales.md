@@ -133,7 +133,7 @@ MotorDsl es una **librería de transformación de documentos**. No maneja infrae
 | Conectarse por Bluetooth a impresoras | La app consumidora (ej. Android BT API) |
 | Descargar plantillas desde APIs REST | El cliente implementa `ITemplateProvider` con su propia lógica HTTP |
 | Descargar datos desde APIs o bases de datos | El cliente implementa `IDataProvider` con su propia fuente |
-| Generar PDF | El cliente implementa `IRenderer` con una librería PDF (QuestPDF, iTextSharp, etc.) |
+| Generar PDF (en el core) | El core no genera PDF, pero el paquete `MotorDsl.Maui` ya provee `PdfRenderer` (PdfSharpCore, `Target = "pdf"`). El cliente solo implementa su propio `IRenderer` si no usa `MotorDsl.Maui`. |
 | Validar datos de negocio | La app consumidora valida antes de llamar a `Render()` |
 | Manejar permisos de Android (BT, storage) | La app MAUI con el framework de permisos correspondiente |
 | Cachear plantillas o datos | El cliente decide su estrategia de cache |
@@ -150,10 +150,10 @@ public class HtmlRenderer : IRenderer
 {
     public string Target => "html";
 
-    public RenderResult Render(DocumentNode document, DeviceProfile profile)
+    public RenderResult Render(LayoutedDocument document, DeviceProfile profile)
     {
         var html = "<html><body>";
-        // Recorrer document.Children y generar HTML...
+        // Recorrer document.NodeLayoutInfo (ordenado por LineNumber/ColumnNumber) y generar HTML...
         html += "</body></html>";
         return new RenderResult("html", html);
     }

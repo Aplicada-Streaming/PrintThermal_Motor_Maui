@@ -1,5 +1,5 @@
-# Entornos de Deploy  
-**Archivo:** entornos-deploy_v1.0.md  
+# Estrategia de Versionado  
+**Archivo:** estrategia-versionado_v1.0.md  
 **Proyecto:** Motor DSL (Librería de Generación de Documentos)  
 **Versión:** v1.0  
 **Estado:** Aprobado  
@@ -10,289 +10,129 @@
 
 ## 1. Propósito
 
-Este documento define los entornos de despliegue del motor DSL, sus responsabilidades, configuraciones generales y reglas de promoción entre ambientes. El objetivo es asegurar consistencia, aislamiento, trazabilidad y calidad en el ciclo de entrega continua de la librería y sus componentes asociados.
+Este documento define la estrategia de versionado de los paquetes NuGet del Motor DSL: el esquema de versiones adoptado, cómo se calcula e inyecta la versión en build/pack, la unificación de versión entre los 7 paquetes y las reglas de etiquetado en git. El objetivo es garantizar trazabilidad, inmutabilidad y consistencia entre los componentes publicados.
 
 ---
 
-## 2. Estrategia general
+## 2. Esquema adoptado: SemVer
 
-El sistema adopta una estrategia de despliegue progresivo por entornos, donde cada cambio atraviesa validaciones crecientes antes de llegar a producción.
-
-Flujo de promoción:
-
-```text
-DEV → QA → STAGING (opcional) → PROD
-````
-
-Cada entorno cumple un rol específico dentro del ciclo de validación del motor, sus extensiones y sus artefactos.
-
----
-
-## 3. Entorno de Desarrollo (DEV)
-
-### 3.1 Propósito
-
-Permitir a los desarrolladores del motor construir, probar y validar nuevas funcionalidades del DSL, renderizadores y extensiones de manera ágil.
-
-### 3.2 Características
-
-* Deploy frecuente (por commit o merge)
-* Datos de prueba / ejemplos DSL
-* Logging detallado
-* Debug habilitado
-* Configuración flexible
-* Entorno no estable
-
-### 3.3 Uso principal
-
-* Desarrollo de nuevas capacidades del motor
-* Validación de nodos DSL
-* Pruebas de renderizado
-* Integración de extensiones
-
-### 3.4 Responsables
-
-* Equipo de desarrollo del motor
-
----
-
-## 4. Entorno de QA / Testing
-
-### 4.1 Propósito
-
-Validar el comportamiento funcional del motor DSL contra especificaciones, casos de uso y criterios de validación.
-
-### 4.2 Características
-
-* Deploy por versión o feature
-* Datos controlados
-* Logging moderado
-* Configuración cercana a producción
-* Acceso restringido
-
-### 4.3 Uso principal
-
-* Validación de casos de prueba
-* Ejecución de pruebas funcionales del DSL
-* Validación de renderizadores
-* Verificación de extensiones
-
-### 4.4 Responsables
-
-* QA
-* Desarrollo (soporte)
-
----
-
-## 5. Entorno de Staging / Preproducción
-
-> Estado opcional en v1.0 — recomendado para evolución futura
-
-### 5.1 Propósito
-
-Simular un entorno equivalente a producción para validar releases del motor antes de su publicación.
-
-### 5.2 Características
-
-* Configuración idéntica a producción
-* Versiones específicas del motor
-* Datos anonimizados o representativos
-* Logging productivo
-* Seguridad completa habilitada
-* Alta estabilidad requerida
-
-### 5.3 Uso principal
-
-* Smoke tests de release del motor
-* Validación de artefactos publicados
-* Pruebas de integración completas
-* Validación de compatibilidad de extensiones
-
-### 5.4 Responsables
-
-* DevOps
-* QA
-* Arquitectura
-
----
-
-## 6. Entorno de Producción (PROD)
-
-### 6.1 Propósito
-
-Publicar versiones estables del motor DSL como librería consumible (paquete NuGet o equivalente) y/o servicios asociados.
-
-### 6.2 Características
-
-* Alta disponibilidad (si aplica como servicio)
-* Logging controlado
-* Monitoreo activo
-* Seguridad reforzada
-* Versiones inmutables
-
-### 6.3 Reglas
-
-* Solo versiones aprobadas pueden publicarse
-* Requiere pipeline CI/CD exitoso
-* Requiere versionado SemVer
-* Cada release debe estar etiquetado
-
-### 6.4 Responsables
-
-* DevOps
-* Arquitectura
-* Mantenimiento de plataforma
-
----
-
-## 7. Configuración por entorno
-
-| Configuración     | DEV    | QA    | STAGING | PROD       |
-| ----------------- | ------ | ----- | ------- | ---------- |
-| Debug             | Sí     | No    | No      | No         |
-| Logging           | Alto   | Medio | Medio   | Bajo       |
-| Datos reales      | No     | No    | Parcial | Sí         |
-| Deploy automático | Sí     | Sí    | Parcial | Controlado |
-| Monitoreo         | Básico | Medio | Alto    | Completo   |
-
----
-
-## 8. Gestión de configuración
-
-Cada entorno debe definir su configuración mediante variables externas.
-
-### Reglas
-
-* No hardcodear configuraciones en el motor
-* Usar variables de entorno o archivos de configuración externos
-* Separar configuración de código y de DSL
-
-### Ejemplos de variables
-
-* ENVIRONMENT
-* LOG_LEVEL
-* RENDER_MODE
-* ENABLE_EXTENSIONS
-* CACHE_SETTINGS
-
----
-
-## 9. Estrategia de versionado
-
-Formato:
+Se utiliza **Semantic Versioning (SemVer)** con el formato:
 
 ```text
 MAJOR.MINOR.PATCH
 ```
 
-Ejemplos:
+| Componente | Ejemplo | Cuándo se incrementa |
+|---|---|---|
+| MAJOR | `2.0.0` | Cambios incompatibles en la API pública (breaking changes) |
+| MINOR | `1.1.0` | Nuevas funcionalidades retrocompatibles |
+| PATCH | `1.0.1` | Correcciones de bugs / cambios internos retrocompatibles |
+| Preview | `0.0.0-preview.42` | Builds automáticos en `main` (no publicados al feed) |
 
-* 1.0.0 → release inicial del motor
-* 1.1.0 → nuevas capacidades DSL o renderizado
-* 1.1.1 → correcciones
+---
+
+## 3. La versión NO se fija en los `.csproj`
+
+Ninguno de los 7 proyectos empaquetables declara `<Version>` en su `.csproj`. La versión se **inyecta en tiempo de build/pack** mediante propiedades MSBuild:
+
+- `/p:Version=<version>`
+- `-p:PackageVersion=<version>`
+- `-p:MotorDslVersion=<version>`
+
+Esto permite que el mismo código fuente se publique con cualquier versión calculada por el pipeline, sin tocar archivos fuente.
+
+---
+
+## 4. Auto-bump de patch (`get-next-version.ps1`)
+
+El script `scripts/nuget/get-next-version.ps1` calcula automáticamente la próxima versión de PATCH de cada paquete:
+
+```powershell
+param($PackageName, $Fallback = "1.0.0")
+```
+
+- Consulta el índice de versiones del paquete en nuget.org
+  (`https://api.nuget.org/v3-flatcontainer/<id>/index.json`).
+- Toma la última versión publicada e incrementa el PATCH (`X.Y.Z` → `X.Y.(Z+1)`).
+- Si el paquete **no existe todavía** en nuget.org, usa el fallback `1.0.0`.
+
+---
+
+## 5. Versión unificada entre los 7 paquetes
+
+Los 7 paquetes (`MotorDsl.Core`, `MotorDsl.Parser`, `MotorDsl.Rendering`, `MotorDsl.Extensions`, `MotorDsl.Printing.Abstractions`, `MotorDsl.Bluetooth`, `MotorDsl.Maui`) tienen dependencias internas entre sí. Para evitar el error de downgrade **`NU1605`** por dependencias transitivas con versiones distintas, el pipeline de publicación:
+
+1. Calcula la próxima versión de cada paquete con `get-next-version.ps1`.
+2. Toma la **versión unificada = `max(next(patch))`** de los 7 paquetes.
+3. Inyecta ese mismo número en TODOS los paquetes vía `/p:Version` y `/p:MotorDslVersion`.
+
+De este modo, una publicación siempre libera los 7 paquetes con la misma versión.
+
+---
+
+## 6. Versionado en el pipeline
+
+| Trigger | Versión resultante | ¿Se publica al feed? |
+|---|---|---|
+| Tag `v1.2.3` | `1.2.3` (o la versión unificada calculada) | Sí — push a nuget.org |
+| `workflow_dispatch` | versión unificada calculada | Sí — push a nuget.org |
+| Push a `main` | `0.0.0-preview.<run_number>` | No — solo artifact descargable |
+
+El step de publicación a nuget.org del workflow `.github/workflows/cd-nuget.yml` solo se ejecuta en tags `v*` o `workflow_dispatch`, usando el secret `NUGET_API_KEY`.
+
+---
+
+## 7. Etiquetado en git
+
+- Cada release publicado lleva un tag git `v<version>` (ej. `v1.0.0`).
+- El script `scripts/nuget/publish-motordsl-nuget.bat` crea el tag `v<version>` y lo pushea a `origin` tras el `dotnet nuget push` exitoso.
+- Los tags son la fuente de trazabilidad entre el commit publicado y la versión en nuget.org.
 
 ### Reglas
 
-* Cada deploy a QA debe estar asociado a una versión
-* Cada release a PROD debe estar versionado y taggeado
-* No se permiten versiones no trazables en producción
+- Cada deploy a QA debe estar asociado a una versión.
+- Cada release a PROD debe estar versionado y taggeado (`v<version>`).
+- No se permiten versiones no trazables en producción.
 
 ---
 
-## 10. Promoción entre entornos
+## 8. Inmutabilidad de versiones
 
-### Flujo obligatorio
+- Las versiones publicadas en nuget.org son **inmutables**: una versión ya publicada no se sobrescribe.
+- El push usa `--skip-duplicate`, de modo que reintentos no fallan si la versión ya existe.
+- Ante un error en una versión, se publica una nueva versión corregida (incremento de PATCH), nunca se reescribe la anterior.
 
-1. Merge a rama principal
-2. Ejecución del pipeline CI/CD
-3. Deploy automático a DEV
-4. Validación técnica
-5. Promoción a QA
-6. Validación funcional
-7. Promoción a STAGING (si aplica)
-8. Aprobación final
-9. Publicación en PROD
-
-### Criterios de promoción
-
-* Build exitoso
-* Tests en verde
-* Validaciones de DSL correctas
-* Casos de prueba aprobados
-* Sin defectos críticos
+```text
+1.1.0 (fallo)
+→ 1.1.1 (corregido)
+```
 
 ---
 
-## 11. Estrategia de despliegue
+## 9. Orden de publicación por dependencias
 
-* Artefactos inmutables por versión
-* Publicación versionada (ej: NuGet)
-* Separación entre build y deploy
-* Deploy automatizado vía CI/CD
+Por las dependencias internas, el push de los paquetes respeta el orden topológico:
 
----
+```text
+Printing.Abstractions → Core → Parser → Rendering → Extensions → Bluetooth → Maui
+```
 
-## 12. Rollback
-
-### Estrategia
-
-* Mantener versiones anteriores del motor disponibles
-* Posibilidad de volver a una versión previa
-* Control de compatibilidad con extensiones
-
-### Cuándo aplicar
-
-* Fallos críticos en renderizado
-* Incompatibilidad DSL
-* Errores en nuevas versiones
-* Problemas de integración con extensiones
+(Mismo orden usado en `publish-motordsl-nuget.bat`.)
 
 ---
 
-## 13. Observabilidad por entorno
+## 10. Relación con otros documentos
 
-Se recomienda progresivamente:
-
-* Logs estructurados
-* Métricas del motor (tiempo de render, errores)
-* Health checks
-* Trazabilidad de ejecución DSL
-* Alertas en producción
+- [guia-publicacion-nuget_v1.0.md](guia-publicacion-nuget_v1.0.md) — Publicación y consumo de paquetes NuGet
+- [pipeline-ci-cd_v1.0.md](pipeline-ci-cd_v1.0.md) — Pipeline CI/CD completo
+- [entornos-deploy_v1.0.md](entornos-deploy_v1.0.md) — Entornos de despliegue
 
 ---
 
-## 14. Seguridad por entorno
+## 11. Control de cambios
 
-* DEV: accesos amplios controlados
-* QA: accesos restringidos
-* STAGING: accesos limitados
-* PROD: accesos estrictamente controlados
-
-Incluye:
-
-* Gestión de secretos
-* Control de dependencias externas
-* Validación de inputs DSL
-* Protección contra ejecución no segura
-
----
-
-## 15. Riesgos
-
-| Riesgo                     | Impacto | Mitigación                    |
-| -------------------------- | ------- | ----------------------------- |
-| Diferencias entre entornos | Alta    | Configuración por entorno     |
-| Incompatibilidad DSL       | Alta    | versionado SemVer + tests     |
-| Extensiones incompatibles  | Alta    | contratos y versionado        |
-| Deploy manual              | Alta    | automatización CI/CD          |
-| Falta de trazabilidad      | Alta    | tags + versionado obligatorio |
-
----
-
-## 16. Control de cambios
-
-| Versión | Fecha      | Autor  | Descripción                    |
-| ------- | ---------- | ------ | ------------------------------ |
-| v1.0    | 2026-03-28 | DevOps | Definición inicial de entornos |
+| Versión | Fecha | Autor | Descripción |
+|---|---|---|---|
+| v1.0 | 2026-03-28 | DevOps | Estrategia inicial de versionado SemVer con versión unificada y auto-bump |
 
 ---

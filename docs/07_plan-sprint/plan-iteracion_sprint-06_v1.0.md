@@ -63,20 +63,27 @@ public interface IDataValidator
 }
 ```
 
-* `ValidationResult` en `MotorDsl.Core/Models`:
+* `ValidationResult` en `MotorDsl.Core.Models` (forma preliminar; la forma final del Sprint 07 incluye `NodeType`, `Severity`, `Location` y `IsValid` calculado):
 
 ```csharp
 public class ValidationResult
 {
-    public bool IsValid { get; set; }
-    public List<ValidationError> Errors { get; set; } = new();
+    // IsValid es calculada: true si no hay errores con Severity == Error
+    public bool IsValid => !Errors.Any(e => e.Severity == ValidationSeverity.Error);
+    public List<ValidationError> Errors { get; } = new();
+    public void AddError(string field, ValidationErrorType type, string message, string nodeType);
 }
 
 public class ValidationError
 {
-    public string Field { get; set; }
-    public ValidationErrorType Type { get; set; }  // MissingField, TypeMismatch, InvalidStructure
-    public string Message { get; set; }
+    public string Field { get; }
+    public ValidationErrorType Type { get; }   // MissingField, TypeMismatch, InvalidStructure, ...
+    public string Message { get; }
+    public string NodeType { get; }
+    public ValidationSeverity Severity { get; init; } = ValidationSeverity.Error;
+    public string? Location { get; init; } = null;
+    // ctor de 4 parámetros:
+    public ValidationError(string field, ValidationErrorType type, string message, string nodeType);
 }
 ```
 
@@ -94,25 +101,31 @@ public class ValidationError
 ```csharp
 public enum PrintErrorType { Connection, Timeout, Hardware, Protocol, Unknown }
 
+// PrintError es inmutable (props get-only + ctor de 5 parámetros + factory FromException)
 public class PrintError
 {
-    public PrintErrorType Type { get; set; }
-    public string Message { get; set; }
-    public Exception? InnerException { get; set; }
-    public int Attempt { get; set; }
+    public PrintErrorType Type { get; }
+    public string Message { get; }
+    public Exception? InnerException { get; }
+    public int Attempt { get; }
+    public int MaxAttempts { get; }
+    public PrintError(PrintErrorType type, string message, Exception? innerException, int attempt, int maxAttempts);
+    public static PrintError FromException(Exception ex, int attempt, int maxAttempts);
 }
 ```
 
-* Interfaz `IPrintErrorHandler` en `MotorDsl.Core/Contracts`:
+* Interfaz `IPrintErrorHandler` en `MotorDsl.Core.Contracts`:
 
 ```csharp
 public interface IPrintErrorHandler
 {
     Task<bool> HandleErrorAsync(PrintError error);  // true = retry, false = abort
+    void OnRetryAttempt(PrintError error);
+    void OnPrintSuccess(int totalAttempts);
 }
 ```
 
-* Retry policy en `ThermalPrinterService` (SampleApp):
+* Retry policy en `ThermalPrinterService`. La implementación de referencia con backoff exponencial vive en `MotorDsl.Printing.Abstractions` (`ThermalPrinterService : IThermalPrinterService`, delay `InitialDelayMs * (1 << (attempt-1))`); los samples con `ProjectReference` usan un `ThermalPrinterService` local más simple.
   * Configurable: `MaxRetries` (default 3), `InitialDelayMs` (default 500)
   * Backoff exponencial: 500ms → 1000ms → 2000ms
   * Antes de cada reintento: verificar conexión BT, reconectar si necesario
@@ -340,7 +353,7 @@ Una tarea se considera terminada cuando:
 * `IDataValidator` + `DataValidator` en `MotorDsl.Core`
 * `ValidationResult` + `ValidationError` en `MotorDsl.Core/Models`
 * `IPrintErrorHandler` + `PrintError` en `MotorDsl.Core`
-* `ThermalPrinterService` mejorado con retry + reconnection en SampleApp
+* `ThermalPrinterService` mejorado con retry + reconnection (implementación de referencia en `MotorDsl.Printing.Abstractions`; los samples con ProjectReference usan un service local)
 * Constantes Barcode EAN-13 en `EscPosCommands`
 * Barcode en LayoutEngine + EscPosRenderer + TextRenderer
 * `MauiDocumentPreview` en `samples/MotorDsl.SampleApp/Controls/`

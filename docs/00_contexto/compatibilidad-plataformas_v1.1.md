@@ -207,14 +207,17 @@ Si un equipo necesita soporte iOS con impresión, estos son los pasos:
 
 | Sample | Android | iOS |
 |---|---|---|
-| MotorDsl.SampleApp | ✅ Render + BT (transport BT registrado) | ✅ Render (BT inactivo) |
-| MotorDsl.MultaApp | ✅ Render + BT | ✅ Render (BT inactivo) |
-| MotorDsl.Integrated.MultaApp | ✅ Render + BT | ✅ Render (BT inactivo) |
-| MotorDsl.Nuget.MultaApp | ✅ Render + BT | ✅ Render (BT inactivo) |
-| MotorDsl.Nuget.Integrated.MultaApp | ✅ Render + BT | ✅ Render (BT inactivo) |
+| MotorDsl.SampleApp | ✅ Render (servicio BT local/stub, sin transport BT del paquete) | ✅ Render (BT inactivo) |
+| MotorDsl.MultaApp | ✅ Render (servicio BT local/stub, sin transport BT del paquete) | ✅ Render (BT inactivo) |
+| MotorDsl.Integrated.MultaApp | ✅ Render (servicio BT local/stub, sin transport BT del paquete) | ✅ Render (BT inactivo) |
+| MotorDsl.Nuget.MultaApp | ✅ Render + BT (transport BT registrado vía `AddBluetoothPrinterTransport`) | ✅ Render (BT inactivo) |
+| MotorDsl.Nuget.Integrated.MultaApp | ✅ Render + BT (transport BT registrado vía `AddBluetoothPrinterTransport`) | ✅ Render (BT inactivo) |
 
-> Cada `MainPage.xaml` aplica `IsVisible="{OnPlatform Android=True, iOS=False}"`
-> a los controles de Bluetooth, y muestra un aviso explicativo en iOS.
+> **Patrón recomendado** para ocultar la UI de Bluetooth en iOS: aplicar
+> `IsVisible="{OnPlatform Android=True, iOS=False}"` a los controles de Bluetooth
+> y mostrar un aviso explicativo en iOS. Los controles `muic:*`
+> (`PrinterStatusBadge` / `PrinterPickerView` / `MauiRasterPreview`) solo aparecen
+> en las 2 apps `Nuget.*`.
 
 ---
 

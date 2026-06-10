@@ -73,7 +73,7 @@ El texto es el elemento base en ESC/POS.
 
 **Características:**
 
-* Codificación dependiente del dispositivo
+* Codificación fija en CP437 (PC437) para el texto plano
 * Soporte de estilos (negrita, subrayado, tamaño)
 * Alineación (izquierda, centro, derecha)
 
@@ -244,7 +244,8 @@ El layout se adapta dinámicamente según el perfil del dispositivo.
 
 La representación debe considerar:
 
-* Encoding del dispositivo (CP437, UTF-8, etc.)
+* Encoding del texto plano: el renderer ESC/POS **fuerza CP437 (PC437)** mediante `ESC t 0` (`1B 74 00`) y codifica siempre el texto en CP437 (fallback ASCII). No hay soporte UTF-8 en la salida ESC/POS de texto.
+* La capability `codepage` (`"850"`/`"437"`/otro→ASCII) **solo** influye en la codificación de los datos de QR/barcode, **no** en el texto plano.
 * Compatibilidad de caracteres especiales
 * Normalización de texto
 * Sustitución de caracteres no soportados

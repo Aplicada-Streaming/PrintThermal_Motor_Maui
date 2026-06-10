@@ -37,7 +37,9 @@ En la versión 1.0, CU-26 describía la descarga de perfiles de impresora desde 
       }
 
       public IEnumerable<DeviceProfile> GetAll() { ... }
-      public void Add(DeviceProfile profile) { ... }
+      // Nota: el contrato IDeviceProfileProvider solo exige GetProfile y GetAll.
+      // Add(DeviceProfile) NO forma parte del contrato (es propio de
+      // InMemoryDeviceProfileProvider), por lo que una implementación de API no lo requiere.
   }
   ```
 

@@ -41,18 +41,18 @@ Si la plantilla no cumple el esquema, el sistema debe rechazarla y no permitir s
 
 ---
 
-# 4. Esquema de Plantilla (Ejemplo Simplificado)
+# 4. Esquema de Plantilla (Tipos de Nodo Soportados)
 
-| Elemento | Descripción                   |
-| -------- | ----------------------------- |
-| document | Nodo raíz de la plantilla     |
-| header   | Sección de encabezado         |
-| body     | Contenido principal           |
-| footer   | Sección final                 |
-| text     | Elemento de texto             |
-| image    | Elemento de imagen            |
-| qr       | Código QR                     |
-| table    | Estructura de datos iterables |
+Los tipos de nodo soportados por el parser/validador son exactamente seis. El nodo raíz es un `container`; el encabezado, cuerpo y pie se modelan agrupando con `container` anidados.
+
+| Tipo        | Descripción                                                  |
+| ----------- | ------------------------------------------------------------ |
+| text        | Elemento de texto                                            |
+| container   | Agrupador de elementos (nodo raíz y secciones)              |
+| conditional | Bloque condicional (control de flujo, formato clásico)       |
+| loop        | Iteración sobre una colección (control de flujo, clásico)    |
+| table       | Estructura de datos tabulares (Headers/Rows)                 |
+| image       | Imagen; el QR es un `image` con `imageType` `"qrcode"` (y barcode con `"barcode"`) |
 
 ---
 

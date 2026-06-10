@@ -12,14 +12,13 @@ distinto y un modo de consumo diferente del Motor.
 | MotorDsl.SampleApp | Demo mínimo: render a texto y ESC/POS sin transport | ProjectReference |
 | MotorDsl.MultaApp | Sample completo de multa de tránsito con servicios MAUI locales | ProjectReference |
 | MotorDsl.Integrated.MultaApp | Sample con DSL en formato `integrated` (datos pre-resueltos) | ProjectReference |
-| MotorDsl.Nuget.MultaApp | Equivalente a MultaApp pero consumiendo los paquetes NuGet | PackageReference + ProjectReference (Fase 1) |
-| MotorDsl.Nuget.Integrated.MultaApp | Equivalente a Integrated pero vía NuGet | PackageReference + ProjectReference (Fase 1) |
+| MotorDsl.Nuget.MultaApp | Equivalente a MultaApp pero consumiendo los paquetes NuGet | PackageReference (7 paquetes, `Version="1.0.*"`) |
+| MotorDsl.Nuget.Integrated.MultaApp | Equivalente a Integrated pero vía NuGet | PackageReference (7 paquetes, `Version="1.0.*"`) |
 
-> **Fase 1**: hasta que `MotorDsl.Maui`, `MotorDsl.Bluetooth` y
-> `MotorDsl.Printing.Abstractions` estén publicados en nuget.org, los samples
-> NuGet los consumen vía `<ProjectReference>` y consumen los 4 paquetes
-> originales (`Core`, `Parser`, `Rendering`, `Extensions`) vía
-> `<PackageReference>`.
+> Los dos samples NuGet referencian los **7 paquetes MotorDsl exclusivamente
+> por `<PackageReference>`** con `Version="1.0.*"` (`Core`, `Parser`,
+> `Rendering`, `Extensions`, `Printing.Abstractions`, `Bluetooth`, `Maui`). No
+> usan `<ProjectReference>`.
 
 ---
 
@@ -54,6 +53,7 @@ public static MauiApp CreateMauiApp()
         .AddProfiles(p =>
         {
             p.Add(new DeviceProfile("thermal_58mm", 32, "escpos-bitmap"));
+            p.Add(new DeviceProfile("preview", 32, "raster-preview"));
             p.Add(new DeviceProfile("a4-pdf", 80, "pdf"));
             p.Add(new DeviceProfile("pdf",    48, "pdf"));
         })
@@ -129,7 +129,7 @@ public partial class MainPage : ContentPage
 
 Mismo patrón que el Integrated, pero consumiendo el formato **template + data**
 del DSL. Diferencia clave: los templates usan `{{placeholders}}`, `loop` y
-`conditional`, y la app llama a `engine.Render(json, data, profile)`.
+`conditional`, y la app llama a `engine.Render(template, data, profile)` (3 args).
 
 ### MauiProgram.cs (relevante)
 
@@ -144,6 +144,8 @@ builder.Services.AddMotorDslEngine()
     .AddProfiles(p =>
     {
         p.Add(new DeviceProfile("thermal_58mm", 32, "escpos-bitmap"));
+        p.Add(new DeviceProfile("preview", 32, "raster-preview"));
+        p.Add(new DeviceProfile("a4-pdf", 80, "pdf"));
         p.Add(new DeviceProfile("pdf", 48, "pdf"));
     })
     .AddMotorDslMaui();
@@ -165,8 +167,11 @@ Equivalente al `Nuget.Integrated.MultaApp` pero usando `<ProjectReference>` a
 `src/MotorDsl.*` en lugar de `<PackageReference>`. Pensado para iterar sobre
 la librería sin tener que publicar paquetes.
 
-`MauiProgram.cs` registra los renderers manualmente porque consume directamente
-el código de `MotorDsl.Maui`:
+Referencia por `<ProjectReference>` sólo `Core`, `Parser`, `Rendering` y
+`Extensions` (**no** referencia `MotorDsl.Maui`). Los renderers
+`PdfRenderer` / `BitmapEscPosRenderer` y el `SkiaSharpRasterizer` son
+**locales** (carpeta `Renderers/` del propio sample). `MauiProgram.cs` los
+registra manualmente:
 
 ```csharp
 builder.Services.AddMotorDslEngine()
@@ -174,6 +179,7 @@ builder.Services.AddMotorDslEngine()
     .AddProfiles(p =>
     {
         p.Add(new DeviceProfile("thermal_58mm", 32, "escpos-bitmap"));
+        p.Add(new DeviceProfile("a4-pdf", 80, "pdf"));
         p.Add(new DeviceProfile("pdf", 48, "pdf"));
     })
     .AddRenderer<PdfRenderer>()
@@ -193,9 +199,9 @@ builder.Services.AddSingleton<IThermalPrinterService, ThermalPrinterService>();
 ## 🧪 MotorDsl.MultaApp (ProjectReference, template + data)
 
 Sample histórico. Consume `MotorDsl.*` vía `<ProjectReference>` y trae los
-renderers + servicios de impresión + controles MAUI **locales** en su propio
-código (carpetas `Renderers/`, `Services/`, `Controls/`). Útil para ver cómo
-era el patrón antes del refactor.
+renderers + servicios de impresión **locales** en su propio código (carpetas
+`Renderers/` y `Services/`). Útil para ver cómo era el patrón antes del
+refactor.
 
 ```csharp
 builder.Services.AddMotorDslEngine()
@@ -208,6 +214,7 @@ builder.Services.AddMotorDslEngine()
     .AddProfiles(p =>
     {
         p.Add(new DeviceProfile("thermal_58mm", 32, "escpos-bitmap"));
+        p.Add(new DeviceProfile("a4-pdf", 80, "pdf"));
         p.Add(new DeviceProfile("pdf", 48, "pdf"));
     })
     .AddRenderer<PdfRenderer>()
@@ -253,6 +260,8 @@ Más detalles en
 
 ## 🐛 Debugging Android
 
-Logs adb, comandos para inspeccionar packages instalados, troubleshooting
-típico (QuestPDF / Skia / `libstdc++` / 16k pages) en
-[`samples/notas-debug-android.md`](notas-debug-android.md).
+Logs adb, comandos para inspeccionar packages instalados y troubleshooting
+típico (Skia / `libstdc++` / 16k pages) en
+[`samples/notas-debug-android.md`](notas-debug-android.md). El log incluye,
+como referencia histórica, el crash de `libQuestPdfSkia.so` (`libstdc++.so.6`
+no encontrada) que motivó migrar el renderer de PDF a **PdfSharpCore**.

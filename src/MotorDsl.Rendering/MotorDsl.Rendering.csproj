@@ -1,24 +1,25 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-  <ItemGroup>
-    <ProjectReference Include="..\MotorDsl.Core\MotorDsl.Core.csproj" />
-  </ItemGroup>
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		
+		<PackageId>MotorDsl.Rendering</PackageId>
+		<Authors>Fernando Rafael Filipuzzi</Authors>
+		<Description>Motor DSL para documentos e impresión térmica ESC/POS. Renderers: EscPosRenderer, TextRenderer.</Description>
+		<PackageTags>maui;thermal;escpos;dsl;printing</PackageTags>
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+		<RepositoryUrl>https://github.com/Aplicada-Streaming/PrintThermal_Motor_Maui</RepositoryUrl>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+	</PropertyGroup>
 
-  <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-    <PackageId>MotorDsl.Rendering</PackageId>
-    <Authors>Fernando Rafael Filipuzzi</Authors>
-    <Description>Motor DSL para documentos e impresión térmica ESC/POS. Renderers: EscPosRenderer, TextRenderer.</Description>
-    <PackageTags>maui;thermal;escpos;dsl;printing</PackageTags>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <RepositoryUrl>https://github.com/Aplicada-Streaming/PrintThermal_Motor_Maui</RepositoryUrl>
-    <PackageReadmeFile>README.md</PackageReadmeFile>
-  </PropertyGroup>
+	<ItemGroup>
+		<None Include="..\..\README.md" Pack="true" PackagePath="\" Visible="false" />
+	</ItemGroup>
 
-  <ItemGroup>
-    <None Include="..\..\README.md" Pack="true" PackagePath="\" Visible="false" />
-  </ItemGroup>
-
+	<ItemGroup>
+		<ProjectReference Include="..\MotorDsl.Core\MotorDsl.Core.csproj" />
+	</ItemGroup>
 </Project>

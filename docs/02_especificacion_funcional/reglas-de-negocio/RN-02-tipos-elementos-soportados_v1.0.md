@@ -40,19 +40,18 @@ Si un elemento no está soportado:
 
 ---
 
-# 4. Tipos de Elementos Soportados (Ejemplo)
+# 4. Tipos de Elementos Soportados
 
-| Tipo      | Descripción            |
-| --------- | ---------------------- |
-| text      | Texto simple           |
-| image     | Imagen                 |
-| qr        | Código QR              |
-| line      | Línea divisoria        |
-| table     | Tabla de datos         |
-| row       | Fila de tabla          |
-| column    | Columna de tabla       |
-| spacer    | Espaciado              |
-| container | Agrupador de elementos |
+El conjunto cerrado de tipos soportados por el motor son exactamente seis. Los nodos `loop` y `conditional` son los elementos de control de flujo. Las filas de una tabla son datos (`Headers`/`Rows`) dentro de `TableNode`, no nodos independientes.
+
+| Tipo        | Descripción                                                            |
+| ----------- | --------------------------------------------------------------------- |
+| text        | Texto simple                                                          |
+| container   | Agrupador de elementos                                                |
+| conditional | Bloque condicional (control de flujo)                                 |
+| loop        | Iteración sobre una colección (control de flujo)                      |
+| table       | Tabla de datos (Headers/Rows)                                         |
+| image       | Imagen; el QR es un `image` con `imageType` `"qrcode"` (barcode con `"barcode"`) |
 
 ---
 

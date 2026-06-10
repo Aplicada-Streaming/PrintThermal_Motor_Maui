@@ -5,7 +5,7 @@
 > Sirve de test de integración end-to-end y como ejemplo canónico para el
 > usuario final.
 
-**Estado:** Implementado — refactor v1.1 (3 paquetes nuevos: `MotorDsl.Maui`, `MotorDsl.Bluetooth`, `MotorDsl.Printing.Abstractions`)
+**Estado:** Implementado — consume los 7 paquetes MotorDsl vía `<PackageReference>` (`Version="1.0.*"`).
 **Ubicación:** `samples/MotorDsl.Nuget.MultaApp/`
 
 ---
@@ -36,8 +36,8 @@ proyectos MAUI.
 | ApplicationId | `com.motordsl.multaapp` | `com.motordsl.nuget.multaapp` |
 | Namespace | `MotorDsl.MultaApp.*` | `MotorDsl.Nuget.MultaApp.*` |
 | Renderers MAUI | Locales en `Renderers/` | Llegan vía `MotorDsl.Maui` |
-| Servicio de impresión | Local en `Services/` | Llega vía `MotorDsl.Printing.Abstractions` |
-| Controles MAUI | Locales en `Controls/` | Llegan vía `MotorDsl.Maui` |
+| Servicio de impresión | Local en `Services/` | Abstracción en `MotorDsl.Printing.Abstractions`; lo registra `AddMotorDslMaui()` + `AddBluetoothPrinterTransport()` (namespace de consumo: `MotorDsl.Printing`) |
+| Controles MAUI | No usa `muic:*` (sin `Controls/` propia) | `muic:*` desde `MotorDsl.Maui` |
 | Propósito principal | Desarrollo del motor | Consumidor final / integración |
 
 ---
@@ -46,25 +46,24 @@ proyectos MAUI.
 
 ```xml
 <!-- Stack core -->
-<PackageReference Include="MotorDsl.Core"       Version="<latest>" />
-<PackageReference Include="MotorDsl.Parser"     Version="<latest>" />
-<PackageReference Include="MotorDsl.Rendering"  Version="<latest>" />
-<PackageReference Include="MotorDsl.Extensions" Version="<latest>" />
+<PackageReference Include="MotorDsl.Core"       Version="1.0.*" />
+<PackageReference Include="MotorDsl.Parser"     Version="1.0.*" />
+<PackageReference Include="MotorDsl.Rendering"  Version="1.0.*" />
+<PackageReference Include="MotorDsl.Extensions" Version="1.0.*" />
 
-<!-- Stack de impresión + UI MAUI (3 paquetes nuevos) -->
-<PackageReference Include="MotorDsl.Printing.Abstractions" Version="<latest>" />
-<PackageReference Include="MotorDsl.Bluetooth"             Version="<latest>" />
-<PackageReference Include="MotorDsl.Maui"                  Version="<latest>" />
+<!-- Stack de impresión + UI MAUI -->
+<PackageReference Include="MotorDsl.Printing.Abstractions" Version="1.0.*" />
+<PackageReference Include="MotorDsl.Bluetooth"             Version="1.0.*" />
+<PackageReference Include="MotorDsl.Maui"                  Version="1.0.*" />
 ```
 
 > Nota: alcanza con declarar `MotorDsl.Maui` y `MotorDsl.Bluetooth`. El resto
 > llega como dependencias transitivas. La lista completa figura sólo a fines
 > de claridad.
 
-> Hasta que las primeras versiones de `MotorDsl.Maui`, `MotorDsl.Bluetooth` y
-> `MotorDsl.Printing.Abstractions` salgan publicadas en nuget.org, el sample
-> consume esos 3 vía `<ProjectReference>` (Fase 1) y los 4 originales vía
-> `<PackageReference>`.
+> El sample consume los **7 paquetes exclusivamente por `<PackageReference>`**
+> con `Version="1.0.*"` — no usa `<ProjectReference>`. Así valida los paquetes
+> tal como los instalaría un desarrollador externo desde nuget.org.
 
 ---
 
@@ -72,7 +71,7 @@ proyectos MAUI.
 
 ```text
 samples/MotorDsl.Nuget.MultaApp/
-├── MotorDsl.Nuget.MultaApp.csproj   ← PackageReference (4) + ProjectReference (3, fase 1)
+├── MotorDsl.Nuget.MultaApp.csproj   ← PackageReference (7 paquetes, Version="1.0.*")
 ├── App.xaml / App.xaml.cs
 ├── AppShell.xaml / AppShell.xaml.cs
 ├── MauiProgram.cs                   ← AddMotorDslEngine + AddMotorDslMaui + AddBluetoothPrinterTransport
@@ -203,7 +202,7 @@ public partial class MainPage : ContentPage
         profile.SetCapability("supports_bitmap", true);
         profile.SetCapability("bitmap_max_width_px", 320);
 
-        var result = _engine.Render(MultaDsl.Template, profile);
+        var result = _engine.Render(MultaDsl.Template, MultaDsl.GetSampleData(), profile);
         if (!result.IsSuccessful || result.Output is not byte[] bytes) return;
 
         if (!_printer.IsConnected) { ShowMessage("Sin impresora"); return; }

@@ -28,4 +28,6 @@
 		</intent>
 	</queries>
 
+	<uses-sdk android:minSdkVersion="25" android:targetSdkVersion="36" />
+
 </manifest>

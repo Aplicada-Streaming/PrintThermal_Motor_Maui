@@ -49,7 +49,7 @@ Incorporar el **primer renderer productivo** del motor y habilitar la **extensib
 
 ### EscPosRenderer (TK-20, TK-21)
 
-* Nuevo proyecto: `MotorDsl.Rendering.EscPos` (o clase dentro de `MotorDsl.Rendering`)
+* Clase dentro de `MotorDsl.Rendering` (`EscPosRenderer`, junto a `TextRenderer` y `EscPosCommands`)
 * Implementa `IRenderer` con `Target => "escpos"`
 * Recibe `LayoutedDocument` + `DeviceProfile` → devuelve `RenderResult` con `byte[]` en `Output`
 * Genera bytes ESC/POS **manualmente** (sin dependencia de ESCPOS_NET)
@@ -86,21 +86,24 @@ public interface IRendererRegistry
 
 ### Extensión DI (TK-23)
 
-* Extension method en `MotorDsl.Core` o namespace raíz:
+* Extension method en el proyecto `MotorDsl.Extensions` (clase `MotorDslServiceCollectionExtensions`, namespace `MotorDsl.Extensions`). Devuelve un `MotorDslBuilder` encadenable.
+* El `IRendererRegistry` se construye por factory: registra de fábrica `new TextRenderer()` y `new EscPosRenderer()` (de `MotorDsl.Rendering`) más todos los `IRenderer` resueltos del contenedor (`sp.GetServices<IRenderer>()`).
+* Snippet **esquemático** (la firma real devuelve `MotorDslBuilder` y el RendererRegistry usa factory):
 
 ```csharp
+// Proyecto real: MotorDsl.Extensions
 public static class MotorDslServiceCollectionExtensions
 {
-    public static IServiceCollection AddMotorDslEngine(this IServiceCollection services)
+    public static MotorDslBuilder AddMotorDslEngine(this IServiceCollection services)
     {
         services.AddSingleton<IDslParser, DslParser>();
         services.AddSingleton<IEvaluator, Evaluator>();
         services.AddSingleton<ILayoutEngine, LayoutEngine>();
-        services.AddSingleton<IRendererRegistry, RendererRegistry>();
-        services.AddSingleton<IRenderer, TextRenderer>();
-        services.AddSingleton<IRenderer, EscPosRenderer>();
+        // RendererRegistry por factory: TextRenderer + EscPosRenderer de fábrica
+        // + los IRenderer del contenedor (sp.GetServices<IRenderer>())
+        services.AddSingleton<IRendererRegistry>(sp => /* factory: new TextRenderer(), new EscPosRenderer(), ... */);
         services.AddSingleton<IDocumentEngine, DocumentEngine>();
-        return services;
+        return new MotorDslBuilder(services);
     }
 }
 ```
@@ -112,13 +115,16 @@ public static class MotorDslServiceCollectionExtensions
   * TextBox para DSL
   * Botón "Preview" → ejecuta pipeline con `TextRenderer` y muestra resultado
   * Botón "Generar ESC/POS" → ejecuta pipeline con `EscPosRenderer` y muestra hex dump
-* Define `IThermalPrinterService` **en la app MAUI** (no en la librería del motor):
+* Define `IThermalPrinterService` **en la app MAUI** (no en la librería del motor). Bosquejo conceptual del sprint; la superficie real del service local de los samples es:
 
 ```csharp
 public interface IThermalPrinterService
 {
-    Task<bool> SendAsync(byte[] data);
-    Task<IEnumerable<PrinterInfo>> DiscoverAsync();
+    bool IsConnected { get; }
+    Task<List<BluetoothDevice>> ScanDevicesAsync();
+    Task<bool> ConnectAsync(string deviceAddress);
+    Task DisconnectAsync();
+    Task SendBytesAsync(byte[] data, PrinterProfile? profile = null, PrintRetryOptions? retryOptions = null);
 }
 ```
 

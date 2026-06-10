@@ -1,8 +1,8 @@
-# 🧠 Motor DSL de Generación de Documentos
+# 🖨️ Motor DSL de Generación de Documentos Térmicos
 
-Sistema de generación y procesamiento de documentos basado en un motor DSL (Domain Specific Language), diseñado para interpretar plantillas, aplicar reglas de negocio y renderizar salidas estructuradas.
+Sistema de generación y procesamiento de documentos basado en un motor DSL (Domain Specific Language), diseñado para interpretar plantillas JSON, evaluar bindings y renderizar salidas estructuradas con foco en **impresión térmica ESC/POS por Bluetooth** desde aplicaciones **.NET MAUI**.
 
-Construido con **.NET 10**, orientado a arquitectura extensible, versionado semántico y ejecución determinística.
+Construido con **.NET 10**, orientado a arquitectura extensible (renderers `IRenderer` y transports `IThermalPrinterTransport`), versionado semántico y ejecución determinística. Se distribuye en **7 paquetes NuGet** (`MotorDsl.Core`, `Parser`, `Rendering`, `Extensions`, `Printing.Abstractions`, `Bluetooth`, `Maui`).
 
 ---
 
@@ -10,11 +10,12 @@ Construido con **.NET 10**, orientado a arquitectura extensible, versionado sem�
 
 El Motor DSL es una librería y conjunto de componentes que permiten:
 
-- Definir documentos mediante un lenguaje DSL estructurado  
+- Definir documentos mediante un lenguaje DSL estructurado (JSON)  
 - Interpretar nodos y expresiones  
-- Aplicar reglas de negocio y evaluación dinámica  
-- Renderizar documentos en múltiples formatos  
-- Extender funcionalidades mediante plugins  
+- Evaluar bindings y condiciones de forma dinámica  
+- Renderizar documentos a texto plano, ESC/POS, PDF y raster/preview  
+- Imprimir por Bluetooth (Classic SPP en Android) desde apps .NET MAUI  
+- Extender funcionalidades vía renderers (`IRenderer`) y transports (`IThermalPrinterTransport`)  
 - Versionar y mantener compatibilidad entre cambios  
 
 El repositorio incluye documentación técnica, especificaciones del DSL, reglas de validación, pruebas y guías de extensibilidad.
@@ -42,9 +43,16 @@ El repositorio incluye documentación técnica, especificaciones del DSL, reglas
 
 **Procesamiento**
 
-- Evaluación de expresiones  
-- Motor de reglas  
-- Renderizado de documentos  
+- Parser DSL JSON → AST  
+- Evaluación de bindings y condiciones  
+- Layout adaptable por perfil de dispositivo  
+- Renderizado de documentos (texto, ESC/POS, PDF, raster)  
+
+**Impresión / MAUI**
+
+- Impresión térmica ESC/POS  
+- Transport Bluetooth Classic SPP (Android) vía `MotorDsl.Bluetooth`  
+- Controles y renderers MAUI (`MotorDsl.Maui`)  
 
 **DevOps**
 
@@ -60,16 +68,17 @@ El repositorio incluye documentación técnica, especificaciones del DSL, reglas
 El sistema se organiza en capas y componentes desacoplados:
 
 - Núcleo del motor (interpretación DSL)  
-- Evaluador de expresiones  
-- Renderizadores  
-- Sistema de extensiones/plugins  
+- Evaluador de bindings y condiciones  
+- Renderizadores (`IRenderer`)  
+- Transports de impresión (`IThermalPrinterTransport`)  
+- Extensibilidad vía DI fluent (`AddMotorDslEngine` / `AddRenderer`)  
 - Capa de validación  
 - Contratos de entrada/salida  
 
 📄 Ver detalle:
 
 ```text
-/docs/05_arquitectura_tecnica/arquitectura-solucion_v1.0.md
+/docs/05_arquitectura_tecnica/arquitectura-solucion_v1.1.md
 ````
 
 ---
@@ -81,17 +90,23 @@ El sistema se organiza en capas y componentes desacoplados:
   00_contexto
   01_necesidades_negocio
   02_especificacion_funcional
-  03_ux_ui
+  03_ux-ui
   04_prompts_ai
   05_arquitectura_tecnica
-  06_backlog_tecnico
-  07_plan_sprint
+  06_backlog-tecnico
+  07_plan-sprint
   08_calidad_y_pruebas
   09_devops
+  10_developer_guide
+  11_examples
 
-/src        (código fuente del motor DSL)
-/tests      (pruebas automatizadas)
+/src        (código fuente del motor DSL — incluye MotorDsl.Tests)
+/samples    (5 apps .NET MAUI de ejemplo)
+/scripts    (local | mobile | nuget | docker)
+/nupkg      (.nupkg generados, gitignored)
 ```
+
+> Las pruebas automatizadas viven en `src/MotorDsl.Tests` (no hay carpeta `/tests` separada).
 
 ---
 
@@ -100,6 +115,8 @@ El sistema se organiza en capas y componentes desacoplados:
 ### Prerrequisitos
 
 * .NET 10 SDK
+* Workload MAUI: `dotnet workload install maui` (requerido para `MotorDsl.Maui` y los samples)
+* Android SDK (para compilar/correr los proyectos MAUI en Android; `dotnet build` a secas no aplica a los proyectos MAUI sin el workload)
 * Entorno de desarrollo (Visual Studio / VS Code)
 
 ---
@@ -108,7 +125,7 @@ El sistema se organiza en capas y componentes desacoplados:
 
 ```bash
 git clone <repo-url>
-cd Motor_DSL
+cd PrintThermal_Motor_Maui
 ```
 
 ---
@@ -144,7 +161,7 @@ dotnet test
 El motor procesa una entrada DSL siguiendo este flujo:
 
 ```text
-DSL → Parseo → Validación → Evaluación → Render → Output
+DSL → Parseo → Validación → Evaluación → Layout → Render → Output
 ```
 
 Componentes involucrados:
@@ -152,7 +169,7 @@ Componentes involucrados:
 * Parser DSL
 * Validator
 * Evaluador de nodos
-* Motor de reglas
+* Layout Engine
 * Renderizador
 
 ---
@@ -202,10 +219,11 @@ Encargado de:
 
 Transforman el modelo interpretado en una salida concreta:
 
-* Texto plano
-* HTML
-* PDF
-* Otros formatos extensibles
+* Texto plano (`TextRenderer`, target `text`)
+* ESC/POS (`EscPosRenderer`, target `escpos`, `byte[]`)
+* PDF (`PdfRenderer`, target `pdf`, en `MotorDsl.Maui`)
+* Raster / preview PNG (`RasterPreviewRenderer`, target `raster-preview`) y ESC/POS bitmap (`BitmapEscPosRenderer`, target `escpos-bitmap`)
+* Otros formatos extensibles vía `IRenderer`
 
 ---
 
@@ -213,10 +231,9 @@ Transforman el modelo interpretado en una salida concreta:
 
 Permiten ampliar el motor mediante:
 
-* Nuevos nodos
-* Funciones personalizadas
-* Evaluadores adicionales
-* Renderizadores específicos
+* Renderizadores específicos (`IRenderer`, registrados con `AddRenderer<T>()`)
+* Transports de impresión personalizados (`IThermalPrinterTransport`: BLE, WiFi/TCP, USB)
+* Perfiles de dispositivo y plantillas vía DI fluent (`AddProfiles` / `AddTemplates`)
 
 📄 Ver detalle:
 
@@ -254,7 +271,7 @@ Una funcionalidad se considera completa cuando:
 📄 Ver detalle:
 
 ```text
-/docs/08_calidad_y_pruebas/definition-of-done_v1.0.md
+/docs/08_calidad_y_pruebas/estrategia-calidad-motor_v1.0.md
 ```
 
 ---
@@ -321,7 +338,7 @@ Incluye:
 
 ## 📜 Licencia
 
-Uso interno / institucional.
+MIT.
 
 ---
 

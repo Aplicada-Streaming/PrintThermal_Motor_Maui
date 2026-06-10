@@ -22,7 +22,7 @@ Construir la **segunda app de ejemplo** — un acta de infracción de tránsito 
 * Contrato `IBitmapRasterizer` para que el cliente inyecte la rasterización
 * Fluent API `.AddRenderer<T>()` para registrar renderers custom
 * App MAUI completa con preview, hex dump, PDF y exportación REST
-* BitmapEscPosRenderer (SkiaSharp) y PdfRenderer (QuestPDF) implementados por la app
+* BitmapEscPosRenderer (SkiaSharp) y PdfRenderer (PdfSharpCore) implementados por la app
 
 👉 Este sprint habilita **CU-08** (Renderizar vista previa UI — multa), **CU-09** (Renderizar PDF), **CU-10** (Enviar a impresora BT — con logo), y valida la **extensibilidad del motor** documentada en la arquitectura.
 
@@ -31,7 +31,7 @@ Construir la **segunda app de ejemplo** — un acta de infracción de tránsito 
 > **La librería core (`MotorDsl.Core`) NO agrega dependencias de terceros.**
 >
 > * `IBitmapRasterizer`: el cliente implementa la rasterización (con SkiaSharp, ImageSharp, o lo que prefiera)
-> * `PdfRenderer`: el cliente implementa `IRenderer` con QuestPDF u otra librería PDF
+> * `PdfRenderer`: el cliente implementa `IRenderer` con PdfSharpCore u otra librería PDF
 > * El core solo provee los contratos y el pipeline — las dependencias pesadas quedan del lado de la app
 
 ---
@@ -41,7 +41,7 @@ Construir la **segunda app de ejemplo** — un acta de infracción de tránsito 
 | ID    | Tipo     | Descripción                                                                          | Prioridad | Estimación |
 | ----- | -------- | ------------------------------------------------------------------------------------ | --------- | ---------- |
 | US-29 | Historia | Como desarrollador, quiero renderizar imágenes bitmap en tickets ESC/POS             | Alta      | 8 pts      |
-| US-30 | Historia | Como desarrollador, quiero generar PDF de un documento sin que la librería core dependa de QuestPDF | Alta      | 5 pts      |
+| US-30 | Historia | Como desarrollador, quiero generar PDF de un documento sin que la librería core dependa de PdfSharpCore | Alta      | 5 pts      |
 | US-31 | Historia | Como desarrollador, quiero una app de ejemplo avanzada que demuestre todas las funcionalidades | Alta      | 13 pts     |
 | TK-59 | Técnica  | Soporte ImageNode bitmap en LayoutEngine — metadata: source, width, height, is_bitmap | Alta      | 5 pts      |
 | TK-60 | Técnica  | Definir `IBitmapRasterizer` en `MotorDsl.Core/Contracts`                             | Alta      | 3 pts      |
@@ -49,7 +49,7 @@ Construir la **segunda app de ejemplo** — un acta de infracción de tránsito 
 | TK-62 | Técnica  | Crear `docs/11_examples/` con documentación de ejemplos                              | Media     | 2 pts      |
 | TK-63 | Técnica  | Crear `samples/MotorDsl.MultaApp/` con estructura base y `MultaDsl.cs` (template + datos hardcodeados) | Alta      | 5 pts      |
 | TK-64 | Técnica  | `BitmapEscPosRenderer` en MultaApp con SkiaSharp para rasterización de imágenes      | Alta      | 8 pts      |
-| TK-65 | Técnica  | `PdfRenderer` en MultaApp con QuestPDF                                               | Alta      | 8 pts      |
+| TK-65 | Técnica  | `PdfRenderer` en MultaApp con PdfSharpCore                                           | Alta      | 8 pts      |
 | TK-66 | Técnica  | `MauiProgram.cs` de MultaApp con DI completo (motor + renderers custom + servicios)  | Alta      | 3 pts      |
 | TK-67 | Técnica  | `MainPage.xaml` de MultaApp con pestañas: Preview MAUI / Hex dump / PDF / Exportar API | Alta      | 5 pts      |
 | TK-68 | Técnica  | Tests unitarios: `IBitmapRasterizer`, fluent API `.AddRenderer<T>()`, ImageNode layout | Alta      | 5 pts      |
@@ -63,19 +63,18 @@ Construir la **segunda app de ejemplo** — un acta de infracción de tránsito 
 ### TK-59 — Soporte ImageNode bitmap en LayoutEngine
 
 * `LayoutEngine` actualmente pasa `ImageNode` como nodo evaluado sin procesamiento especial
-* Agregar lógica para generar `LayoutedImageNode` con metadata:
+* Agregar lógica para marcar la imagen en `LayoutedDocument.NodeLayoutInfo` (diccionario `string → LayoutInfo`). No existen clases `LayoutedNode`/`LayoutedImageNode`: el LayoutEngine escribe flags en `LayoutInfo.DeviceMetadata` y el texto en `LayoutInfo.WrappedText`:
 
 ```csharp
-public class LayoutedImageNode : LayoutedNode
-{
-    public string Source { get; set; }     // data:image/png;base64,... o URL
-    public int Width { get; set; }         // Ancho en columnas/px
-    public int Height { get; set; }        // Alto en filas/px
-    public bool IsBitmap { get; set; }     // true si source es base64 bitmap
-}
+// LayoutInfo del nodo imagen (dentro de LayoutedDocument.NodeLayoutInfo)
+info.DeviceMetadata["is_bitmap"]     = true;                  // bitmap base64
+info.DeviceMetadata["bitmap_source"] = source;               // data:image/png;base64,... o URL
+info.DeviceMetadata["bitmap_width"]  = width;
+// para QR:     is_qr / qr_data    | para barcode: is_barcode / barcode_data
+info.WrappedText = "[BITMAP: source_truncado]";              // o "[IMG-DEGRADED:...]"
 ```
 
-* Para `TextRenderer`: generar placeholder `[BITMAP: source_truncado]`
+* Para `TextRenderer`: `WrappedText` lleva el placeholder `[BITMAP: source_truncado]`
 * Para `EscPosRenderer` base: ignorar (la rasterización la hace el renderer custom)
 * El `LayoutEngine` calcula posición y dimensiones dentro del ancho del perfil
 
@@ -144,7 +143,7 @@ builder.Services.AddMotorDslEngine()
 * `Templates/MultaDsl.cs` con:
   * Template DSL completo del acta de infracción (documentado en ejemplo-02-multa.md)
   * `GetSampleData()` con datos hardcodeados de ejemplo
-* Dependencias NuGet: SkiaSharp 3.x, QuestPDF 2024.x
+* Dependencias NuGet: SkiaSharp 3.119.2, PdfSharpCore 1.3.67
 
 ### TK-64 — BitmapEscPosRenderer
 
@@ -152,21 +151,23 @@ builder.Services.AddMotorDslEngine()
 * Implementa `IRenderer` con `Target = "escpos-bitmap"`
 * Usa `IBitmapRasterizer` (inyectado) para convertir imágenes
 * Para nodos de texto, delega a `EscPosCommands` existentes
-* Para `LayoutedImageNode`: llama a `_rasterizer.Rasterize(source, width)`
+* Para imágenes (`LayoutInfo.DeviceMetadata["is_bitmap"]` con `bitmap_source`): llama a `_rasterizer.Rasterize(source, width)`
 
 ### TK-65 — PdfRenderer
 
 * Archivo: `samples/MotorDsl.MultaApp/Renderers/PdfRenderer.cs`
 * Implementa `IRenderer` con `Target = "pdf"`
-* Usa QuestPDF para mapear `LayoutedDocument` a PDF:
-  * `LayoutedTextNode` → `Text()` con estilos (bold, align, size)
-  * `LayoutedImageNode` → `Image()` desde bytes base64
-  * `LayoutedTableNode` → `Table()` con columnas
+* Usa PdfSharpCore (A4, word-wrap por medición real, page-break automático; `MotorDslFontResolver : IFontResolver`) para mapear `LayoutedDocument` a PDF, recorriendo `NodeLayoutInfo`:
+  * Texto (`WrappedText`) → dibujado con estilos leídos de `DeviceMetadata` (`bold`) y `LayoutInfo.Alignment`
+  * Imagen (`DeviceMetadata["is_bitmap"]` / `bitmap_source`) → imagen desde bytes base64
+  * Tabla → columnas calculadas (la metadata de tabla también va en `NodeLayoutInfo`)
 * Retorna `RenderResult` con `Output = byte[]` (PDF binario)
 
 ### TK-66 — MauiProgram.cs de MultaApp
 
-* Registro DI completo:
+Hay **dos rutas de composición** según cómo referencie la app a MotorDsl:
+
+**(a) ProjectReference (apps `MotorDsl.MultaApp` / `Integrated.MultaApp`)** — renderers locales + `.AddRenderer<T>()` y rasterizer manual:
 
 ```csharp
 builder.Services.AddMotorDslEngine()
@@ -181,6 +182,17 @@ builder.Services.AddMotorDslEngine()
 
 builder.Services.AddSingleton<IBitmapRasterizer, SkiaSharpRasterizer>();
 builder.Services.AddSingleton<IThermalPrinterService, ThermalPrinterService>();
+```
+
+**(b) NuGet (apps `MotorDsl.Nuget.MultaApp` / `Nuget.Integrated.MultaApp`)** — `.AddMotorDslMaui()` (en `MotorDsl.Maui`, extiende `MotorDslBuilder`) aporta el rasterizer y los renderers (`PdfRenderer`, `BitmapEscPosRenderer`, `RasterPreviewRenderer`), y el `IThermalPrinterService` vía `AddMotorDslPrinting`:
+
+```csharp
+builder.Services.AddMotorDslEngine()
+    .AddTemplates(t => t.Add("acta-infraccion", MultaDsl.Template))
+    .AddProfiles(p => { /* ... */ })
+    .AddMotorDslMaui();   // registra IBitmapRasterizer→SkiaSharpRasterizer, QrCodeRasterizer,
+                          // PdfRenderer/BitmapEscPosRenderer/RasterPreviewRenderer y AddMotorDslPrinting
+builder.Services.AddBluetoothPrinterTransport();
 ```
 
 ### TK-67 — MainPage.xaml con pestañas
@@ -204,7 +216,7 @@ builder.Services.AddSingleton<IThermalPrinterService, ThermalPrinterService>();
 | Test | Descripción |
 |------|-------------|
 | 1 | `IBitmapRasterizer` mock: rasteriza y retorna bytes ESC/POS |
-| 2 | `LayoutEngine` genera `LayoutedImageNode` con metadata correcta |
+| 2 | `LayoutEngine` marca la imagen en `NodeLayoutInfo` (`LayoutInfo.DeviceMetadata`: is_bitmap/bitmap_source) con metadata correcta |
 | 3 | `TextRenderer` genera placeholder `[BITMAP: ...]` para ImageNode |
 | 4 | `.AddRenderer<T>()` registra renderer en DI correctamente |
 | 5 | `.AddRenderer<T>()` es chainable con `.AddTemplates()` |
@@ -233,16 +245,16 @@ EvaluatedDocument
  ↓
 IProfileValidator (Sprint 07)
  ↓
-LayoutEngine (Sprint 03 + Sprint 08)  ←── MEJORADO: genera LayoutedImageNode
+LayoutEngine (Sprint 03 + Sprint 08)  ←── MEJORADO: marca imagen en NodeLayoutInfo (DeviceMetadata)
  ↓
-LayoutedDocument (con LayoutedImageNode)
+LayoutedDocument (NodeLayoutInfo con is_bitmap/bitmap_source)
  ↓
 ┌──────────────────────────────────────┐
 │ RendererRegistry (Sprint 03 + 08)     │
 │  ├── TextRenderer        → string     │  [BITMAP: source]
 │  ├── EscPosRenderer      → byte[]     │  texto + QR + barcode
 │  ├── BitmapEscPosRenderer→ byte[]     │  ←── NUEVO: texto + imágenes (SkiaSharp)
-│  └── PdfRenderer         → byte[]     │  ←── NUEVO: PDF (QuestPDF)
+│  └── PdfRenderer         → byte[]     │  ←── NUEVO: PDF (PdfSharpCore)
 └──────────────────────────────────────┘
  ↓
 RenderResult
@@ -270,12 +282,12 @@ RenderResult
 ## 📐 Criterios de aceptación del sprint
 
 1. `IBitmapRasterizer` definido como contrato en `MotorDsl.Core` — sin implementación en core
-2. `LayoutEngine` genera `LayoutedImageNode` con metadata (source, width, height, is_bitmap)
+2. `LayoutEngine` marca la imagen en `NodeLayoutInfo` (`LayoutInfo.DeviceMetadata`: bitmap_source, bitmap_width, is_bitmap)
 3. `.AddRenderer<T>()` funciona en la fluent API y es chainable
 4. `MultaApp` compila y despliega en Android
 5. `MultaDsl.cs` contiene template completo del acta con: logo, infractor, vehículo, tabla de infracciones, QR condicional, firma
 6. `BitmapEscPosRenderer` rasteriza imágenes con SkiaSharp para impresora térmica
-7. `PdfRenderer` genera PDF válido con QuestPDF
+7. `PdfRenderer` genera PDF válido con PdfSharpCore
 8. Las 4 pestañas funcionan: Preview MAUI, Hex dump, PDF, Exportar API
 9. ~8 tests nuevos pasando (total ~181)
 10. Build limpio + todos los tests pasando + committed

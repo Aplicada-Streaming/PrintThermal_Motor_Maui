@@ -15,6 +15,8 @@ Este documento describe la representación de documentos en vista previa (UI) de
 
 La vista previa UI constituye una representación no física del documento, orientada a simulación visual en pantalla, respetando en la medida de lo posible las restricciones del dispositivo destino.
 
+> Nota técnica: la vista previa no utiliza un "Renderizador UI" (no existe ningún `IRenderer` con `Target == "ui"`). En la práctica se construye con el control MAUI `MauiDocumentPreview` a partir del `LayoutedDocument` que devuelve `IDocumentEngine.RenderLayout(template, data, profile)`, o con `MauiRasterPreview` mostrando el PNG del target real `raster-preview`. Los términos "vista UI" / "Renderizador UI" de este documento son conceptuales.
+
 ---
 
 # 2. Alcance
@@ -184,11 +186,11 @@ Documento Abstracto
         ↓
 Modelo Interno
         ↓
-Motor de Layout
+Motor de Layout (RenderLayout)
         ↓
-Representación Abstracta
+LayoutedDocument  /  target raster-preview (PNG)
         ↓
-Renderizador UI
+Control UI (MauiDocumentPreview / MauiRasterPreview)
         ↓
 Componentes Visuales
         ↓

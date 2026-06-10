@@ -185,7 +185,7 @@ OnHexDumpClicked()
     │       └── Render(EscPosRenderer) → byte[]
     │
     └── Muestra hex dump formateado en OutputLabel
-        Ejemplo: "1B 40 1B 69 01 00 4D 49 ..."
+        Ejemplo: "1B 40 1B 74 00 ..."  (Init ESC @ + selección CP437 ESC t 0)
 ```
 
 ### 4. Vista Previa MAUI (botón "MAUI Preview")

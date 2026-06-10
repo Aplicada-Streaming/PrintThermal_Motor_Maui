@@ -53,7 +53,7 @@ Implementar el **pipeline completo del motor**, habilitando:
 * Implementación de:
 
   * ILayoutEngine (interfaz)
-  * LayoutCalculator (algoritmos de distribución)
+  * LayoutEngine : ILayoutEngine (algoritmos de distribución, namespace `MotorDsl.Core.Layout`; método `ApplyLayout(EvaluatedDocument, DeviceProfile)`)
   * IRenderer base (contrato para todos los renderers)
   * TextRenderer (renderer de texto plano)
   * IDocumentEngine (orquestador principal)

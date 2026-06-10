@@ -132,20 +132,27 @@ Publicar versiones estables del motor DSL como librería consumible en **NuGet.o
 
 ### 6.3 Destino de publicación NuGet
 
-| Paquete              | Registry              | URL                                        | Versión actual |
-|----------------------|-----------------------|--------------------------------------------|----------------|
-| MotorDsl.Core        | nuget.org             | https://www.nuget.org/packages/MotorDsl.Core     | 1.0.2          |
-| MotorDsl.Parser      | nuget.org             | https://www.nuget.org/packages/MotorDsl.Parser   | 1.0.2          |
-| MotorDsl.Rendering   | nuget.org             | https://www.nuget.org/packages/MotorDsl.Rendering| 1.0.2          |
-| MotorDsl.Extensions  | nuget.org             | https://www.nuget.org/packages/MotorDsl.Extensions | 1.0.2        |
+Se publican **7 paquetes** en nuget.org:
 
-**Trigger:** tag `v*` en GitHub (ej. `v1.0.2`).  
+| Paquete                        | Registry  | URL                                                           |
+|--------------------------------|-----------|--------------------------------------------------------------|
+| MotorDsl.Core                  | nuget.org | https://www.nuget.org/packages/MotorDsl.Core                 |
+| MotorDsl.Parser                | nuget.org | https://www.nuget.org/packages/MotorDsl.Parser               |
+| MotorDsl.Rendering             | nuget.org | https://www.nuget.org/packages/MotorDsl.Rendering            |
+| MotorDsl.Extensions            | nuget.org | https://www.nuget.org/packages/MotorDsl.Extensions           |
+| MotorDsl.Printing.Abstractions | nuget.org | https://www.nuget.org/packages/MotorDsl.Printing.Abstractions|
+| MotorDsl.Bluetooth             | nuget.org | https://www.nuget.org/packages/MotorDsl.Bluetooth            |
+| MotorDsl.Maui                  | nuget.org | https://www.nuget.org/packages/MotorDsl.Maui                 |
+
+La versión NO se fija en los `.csproj`: el pipeline calcula una **versión unificada** (auto-bump de patch consultando nuget.org, vía `get-next-version.ps1`) e inyecta el mismo número en los 7 paquetes para evitar `NU1605`.
+
+**Trigger:** tag `v*` en GitHub (ej. `v1.0.0`).  
 **Secret requerido:** `NUGET_API_KEY` (configurado en GitHub Secrets).  
 **Workflow:** `.github/workflows/cd-nuget.yml`.
 
 ### 6.4 Validación en producción
 
-La app `samples/MotorDsl.MultaApp.Nuget` funciona como test de integración end-to-end: consume los 4 paquetes desde nuget.org y verifica que el pipeline DSL completo funciona en una app MAUI real.
+Las apps `samples/MotorDsl.Nuget.MultaApp` y `samples/MotorDsl.Nuget.Integrated.MultaApp` funcionan como test de integración end-to-end: consumen los 7 paquetes desde nuget.org (con `Version="1.0.*"`) y verifican que el pipeline DSL completo funciona en una app MAUI real.
 
 ### 6.5 Reglas
 
@@ -311,6 +318,6 @@ Incluye:
 | Versión | Fecha      | Autor  | Descripción                    |
 | ------- | ---------- | ------ | ------------------------------ |
 | v1.0    | 2026-03-28 | DevOps | Definición inicial de entornos |
-| v1.1    | 2026-04-02 | DevOps | PROD = NuGet.org real; tablas de paquetes publicados; sample MultaApp.Nuget |
+| v1.1    | 2026-04-02 | DevOps | PROD = NuGet.org real; tabla de los 7 paquetes publicados; samples Nuget.MultaApp / Nuget.Integrated.MultaApp |
 
 ---

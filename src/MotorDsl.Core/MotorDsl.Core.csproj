@@ -1,20 +1,22 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-    <PackageId>MotorDsl.Core</PackageId>
-     <Authors>Fernando Rafael Filipuzzi</Authors>
-    <Description>Motor DSL para documentos e impresión térmica ESC/POS. Parser, Evaluator, LayoutEngine y contratos.</Description>
-    <PackageTags>maui;thermal;escpos;dsl;printing</PackageTags>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <RepositoryUrl>https://github.com/Aplicada-Streaming/PrintThermal_Motor_Maui</RepositoryUrl>
-    <PackageReadmeFile>README.md</PackageReadmeFile>
-  </PropertyGroup>
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
 
-  <ItemGroup>
-    <None Include="..\..\README.md" Pack="true" PackagePath="\" Visible="false" />
-  </ItemGroup>
+		<PackageId>MotorDsl.Core</PackageId>
+		<Authors>Fernando Rafael Filipuzzi</Authors>
+		<Description>Motor DSL para documentos e impresión térmica ESC/POS. Parser, Evaluator, LayoutEngine y contratos.</Description>
+		<PackageTags>maui;thermal;escpos;dsl;printing</PackageTags>
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+		<RepositoryUrl>https://github.com/Aplicada-Streaming/PrintThermal_Motor_Maui</RepositoryUrl>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<None Include="..\..\README.md" Pack="true" PackagePath="\" Visible="false" />
+	</ItemGroup>
 
 </Project>

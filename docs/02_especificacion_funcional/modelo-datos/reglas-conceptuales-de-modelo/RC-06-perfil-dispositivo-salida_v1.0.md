@@ -48,7 +48,7 @@ El perfil del dispositivo permite adaptar la salida a estas restricciones de for
 
 # 4. Condiciones de Aplicación
 
-* Aplica durante la etapa de renderizado del documento (CU-29).
+* Aplica durante la adaptación del documento al perfil y el renderizado (CU-12 Adaptar documento al perfil, CU-23 Aplicar restricciones del dispositivo).
 * Aplica al seleccionar el dispositivo de salida antes de la impresión (CU-11).
 * Aplica a todos los documentos que sean enviados a dispositivos físicos o virtuales.
 
@@ -124,9 +124,11 @@ Si el documento contiene elementos no soportados por el perfil:
 Esta regla impacta directamente en:
 
 * CU-11 Seleccionar perfil de impresora
-* CU-29 Integrar motor con renderizadores
+* CU-12 Adaptar documento al perfil
+* CU-23 Aplicar restricciones del dispositivo
+* CU-29 Extender motor con nuevos renderizadores
 * CU-32 Manejar errores de impresión
-* CU-26 Descargar perfil de impresora
+* CU-21 Cargar perfil de impresora (absorbe el antiguo CU-26 "Descargar perfil de impresora" en v2.0)
 
 Es clave para garantizar que la salida del sistema sea adaptable y funcional en distintos entornos de impresión.
 

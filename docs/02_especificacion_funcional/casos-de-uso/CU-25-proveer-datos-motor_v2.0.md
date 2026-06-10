@@ -140,9 +140,10 @@ El objetivo es desacoplar la fuente de datos del motor, permitiendo que el siste
 public interface IDataProvider
 {
     IDictionary<string, object>? GetData(string dataKey);
-    void Add(string dataKey, IDictionary<string, object> data);
 }
 ```
+
+> **Nota:** `Add(string, IDictionary<string, object>)` **no** forma parte del contrato `IDataProvider`; es un método de la implementación `InMemoryDataProvider` (ver abajo).
 
 **Implementación default:**
 

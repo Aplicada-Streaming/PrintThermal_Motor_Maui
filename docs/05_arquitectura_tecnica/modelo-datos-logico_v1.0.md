@@ -188,18 +188,21 @@ Define capacidades del dispositivo de renderizado.
 
 | Campo | Tipo | Nulo | Descripción |
 |------|------|------|------------|
-| Name | string | No | Nombre del perfil |
-| Width | int | No | Ancho disponible |
-| RenderTarget | string | No | Tipo de salida |
-| Capabilities | Dictionary | Sí | Capacidades específicas |
+| Name | string | No | Nombre del perfil (solo lectura, fijado por ctor) |
+| Width | int | No | Ancho disponible (solo lectura, fijado por ctor) |
+| RenderTarget | string | No | Tipo de salida (solo lectura, fijado por ctor) |
+
+> `Name`, `Width` y `RenderTarget` son de **solo lectura**: se asignan en el constructor `DeviceProfile(string name, int width, string renderTarget)`.
+>
+> No existe una propiedad pública `Capabilities` de tipo `Dictionary`. Las *capabilities* se gestionan mediante los métodos `SetCapability(key, value)` / `GetCapability(key)` / `HasCapability(key)` (claves reconocidas: `"supports_qrcode"`, `"supports_barcode"`, `"supports_images"`, `"bitmap_max_width_px"`, ...).
 
 ### RenderTargets posibles
 
-- escpos  
-- ui  
-- pdf  
 - text  
-- image  
+- escpos  
+- escpos-bitmap  
+- pdf  
+- raster-preview  
 
 ---
 
@@ -212,14 +215,15 @@ Representa la salida del motor.
 | Campo | Tipo | Nulo | Descripción |
 |------|------|------|------------|
 | Target | string | No | Tipo de salida |
-| Output | object | No | Resultado generado |
+| Output | object | Sí | Resultado generado (`object?`) |
 | Warnings | List<string> | Sí | Advertencias |
 | Errors | List<string> | Sí | Errores |
 
 ### Reglas
 
 - Output depende del renderer  
-- Puede contener texto, bytes o estructuras UI  
+- Puede contener texto (`string`), bytes (`byte[]`) o estructuras UI (`View`)  
+- `IsSuccessful` (propiedad) es `true` cuando `Errors` está vacío; los helpers `ToHexString()` / `ToBase64()` serializan el `Output` binario  
 
 ---
 

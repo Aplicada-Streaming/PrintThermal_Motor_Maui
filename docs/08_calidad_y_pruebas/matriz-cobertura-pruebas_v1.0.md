@@ -57,7 +57,7 @@ La matriz relaciona:
 | Expresiones | Evaluación de condiciones y lógica | Unit | CP-003, CP-010 | Alta | Pendiente |
 | Data Resolver | Resolución de datos dinámicos | Unit / Integration | CP-002, CP-011 | Alta | Pendiente |
 | Layout Engine | Adaptación del documento al dispositivo | Unit / Snapshot | CP-007 | Alta | Pendiente |
-| Renderer UI | Renderizado a UI | Integration / Snapshot | CP-013 | Media | Pendiente |
+| Renderer texto / PDF / raster-preview | Renderizado a texto plano, PDF y previsualización pixelada | Integration / Snapshot | CP-013 | Media | Pendiente |
 | Renderer ESC/POS | Renderizado para impresión | Integration / Snapshot | CP-008, CP-013 | Alta | Pendiente |
 | Motor de ejecución | Orquestación del pipeline completo | Integration / Snapshot | CP-009 | Alta | Pendiente |
 | Condicionales | Evaluación de nodos If | Unit | CP-003 | Alta | Pendiente |
@@ -67,6 +67,8 @@ La matriz relaciona:
 | Device Profiles | Adaptación de salida | Integration | CP-007, CP-013 | Alta | Pendiente |
 | Encoding de texto | Manejo de caracteres especiales | Unit | CP-015 | Media | Pendiente |
 | Documento vacío | Casos borde | Unit | CP-014 | Media | Pendiente |
+
+> **Nota sobre renderers.** Los `IRenderer` reales y sus targets son: `text` (TextRenderer), `escpos` (EscPosRenderer) y, en MAUI, `pdf`, `escpos-bitmap` y `raster-preview`. No existe un renderer con target `"UI"`: la previsualización en pantalla se arma desde el `LayoutedDocument` con controles MAUI (`MauiDocumentPreview` / `MauiRasterPreview`), no es un target de `IRenderer`.
 
 ---
 

@@ -133,9 +133,10 @@ public interface ITemplateProvider
 {
     string? GetTemplate(string templateId);
     IEnumerable<string> GetAvailableTemplateIds();
-    void Add(string templateId, string dslContent);
 }
 ```
+
+> **Nota:** `Add(string, string)` **no** forma parte del contrato `ITemplateProvider`; es un método de la implementación `InMemoryTemplateProvider` (ver abajo).
 
 **Implementación default:**
 

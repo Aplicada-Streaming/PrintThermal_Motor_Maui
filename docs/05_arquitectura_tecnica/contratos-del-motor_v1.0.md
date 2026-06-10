@@ -22,10 +22,13 @@ Los contratos aquí definidos constituyen la fuente de verdad para:
 
 ## 2. Convenciones generales
 
-**Namespace base sugerido**
+**Namespaces base**
+
+Los contratos viven en `MotorDsl.Core.Contracts` y los modelos en `MotorDsl.Core.Models`. Otros namespaces reales del core: `MotorDsl.Core.Engine`, `MotorDsl.Core.Evaluators`, `MotorDsl.Core.Layout`, `MotorDsl.Core.Providers`, `MotorDsl.Core.Validation`, `MotorDsl.Core.Printing`.
 
 ```text
-MotorDsl
+MotorDsl.Core.Contracts   // interfaces (IRenderer, IDslParser, ...)
+MotorDsl.Core.Models      // modelos (DocumentNode, DeviceProfile, RenderResult, ...)
 ````
 
 **Principios**
@@ -113,6 +116,8 @@ public class DocumentTemplate
 
     /// Default: "template". Set to "integrated" to indicate the AST is fully resolved.
     public string Format { get; set; } = FormatTemplate;
+
+    public DocumentTemplate(string id, string version, DocumentNode? root = null);
 }
 ```
 
@@ -127,16 +132,27 @@ Representar una plantilla ya parseada y validada. La propiedad `Format` discrimi
 ```csharp id="deviceprofile-001"
 public class DeviceProfile
 {
-    public string Name { get; set; }
-    public int Width { get; set; }
-    public string RenderTarget { get; set; } // escpos | ui | text | pdf
-    public Dictionary<string, object> Capabilities { get; set; }
+    public string Name { get; }          // get-only (asignado por ctor)
+    public int Width { get; }            // get-only (asignado por ctor)
+    public string RenderTarget { get; }  // get-only. escpos | escpos-bitmap | text | pdf | raster-preview
+
+    public int? CodePage { get; set; }
+    public byte[]? CodePageCommand { get; set; }
+    public int? BaudRate { get; set; }
+    public List<string>? SupportedBarcodes { get; set; }
+
+    public DeviceProfile(string name, int width, string renderTarget);
+
+    // Capabilities: NO hay propiedad pública Dictionary; se gestionan por métodos.
+    public void SetCapability(string key, object value);
+    public object? GetCapability(string key);
+    public bool HasCapability(string key);
 }
 ```
 
 **Responsabilidad**
 
-Definir las capacidades y restricciones del dispositivo destino.
+Definir las capacidades y restricciones del dispositivo destino. `Name`, `Width` y `RenderTarget` son de solo lectura (se fijan en el constructor). Las *capabilities* (p.ej. `"supports_qrcode"`, `"supports_barcode"`, `"supports_images"`) se manejan con `SetCapability` / `GetCapability` / `HasCapability`, no como una propiedad `Dictionary`.
 
 ---
 
@@ -148,7 +164,14 @@ Definir las capacidades y restricciones del dispositivo destino.
 public abstract class DocumentNode
 {
     public string Type { get; set; }
-    public List<DocumentNode> Children { get; set; }
+    public List<DocumentNode>? Children { get; set; }
+    public Dictionary<string, object>? Properties { get; set; }
+    public StyleDefinition? Style { get; set; }
+
+    protected DocumentNode(string type);
+    public void AddChild(DocumentNode child);
+    public void SetProperty(string key, object value);
+    public object? GetProperty(string key);
 }
 ```
 
@@ -190,7 +213,7 @@ public class ConditionalNode : DocumentNode
 public interface IRenderer
 {
     string Target { get; }
-    RenderResult Render(DocumentNode document, DeviceProfile profile);
+    RenderResult Render(LayoutedDocument document, DeviceProfile profile);
 }
 ```
 
@@ -207,15 +230,23 @@ public interface IRenderer
 public class RenderResult
 {
     public string Target { get; set; }
-    public object Output { get; set; }
+    public object? Output { get; set; }   // byte[] (ESC/POS o PDF), string (text), o View (UI)
     public List<string> Warnings { get; set; }
     public List<string> Errors { get; set; }
+
+    public RenderResult(string target, object? output = null);
+
+    public bool IsSuccessful => Errors.Count == 0;   // propiedad, no método
+    public void AddWarning(string message);
+    public void AddError(string message);
+    public string? ToHexString();   // byte[] → hex separado por espacios; null si Output no es byte[]
+    public string? ToBase64();      // byte[] → Base64; null si Output no es byte[]
 }
 ```
 
 **Responsabilidad**
 
-Contener el resultado del renderizado junto con posibles advertencias o errores.
+Contener el resultado del renderizado junto con posibles advertencias o errores. `IsSuccessful` es `true` cuando no hay errores. Los helpers `ToHexString()` / `ToBase64()` permiten serializar el `Output` binario (devuelven `null` si `Output` no es `byte[]`).
 
 ---
 
@@ -244,7 +275,7 @@ public interface IDslParser
 ```csharp id="ilayoutengine-001"
 public interface ILayoutEngine
 {
-    DocumentNode ApplyLayout(DocumentNode document, DeviceProfile profile);
+    LayoutedDocument ApplyLayout(EvaluatedDocument document, DeviceProfile profile);
 }
 ```
 
@@ -263,7 +294,8 @@ public interface ILayoutEngine
 ```csharp id="idataresolver-001"
 public interface IDataResolver
 {
-    object Resolve(object data, string path);
+    object? Resolve(object? data, string path);
+    IEnumerable<object> ResolveCollection(object? data, string path);
 }
 ```
 
@@ -281,7 +313,8 @@ public interface IDataResolver
 ```csharp id="ideviceprofileprovider-001"
 public interface IDeviceProfileProvider
 {
-    DeviceProfile GetProfile(string name);
+    DeviceProfile? GetProfile(string name);
+    IEnumerable<DeviceProfile> GetAll();
 }
 ```
 
@@ -327,10 +360,10 @@ public class CustomRenderer : IRenderer
 {
     public string Target => "custom";
 
-    public RenderResult Render(DocumentNode document, DeviceProfile profile)
+    public RenderResult Render(LayoutedDocument document, DeviceProfile profile)
     {
         // implementación personalizada
-        return new RenderResult();
+        return new RenderResult(Target);
     }
 }
 ```
@@ -346,8 +379,13 @@ Extendiendo `DocumentNode` para soportar nuevos elementos DSL.
 ### Registro en DI
 
 ```csharp id="di-registration-001"
+// Patrón idiomático: fluent vía MotorDslBuilder
+builder.AddRenderer<EscPosRenderer>();
+builder.AddRenderer<TextRenderer>();
+
+// Equivalente directo sobre IServiceCollection
 services.AddSingleton<IRenderer, EscPosRenderer>();
-services.AddSingleton<IRenderer, UiRenderer>();
+services.AddSingleton<IRenderer, TextRenderer>();
 ```
 
 ---

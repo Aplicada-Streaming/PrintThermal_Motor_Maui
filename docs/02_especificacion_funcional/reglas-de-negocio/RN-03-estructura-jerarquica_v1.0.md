@@ -44,17 +44,17 @@ El sistema debe garantizar que toda plantilla DSL esté organizada como un árbo
 # 4. Estructura Jerárquica (Ejemplo Simplificado)
 
 ```
-document
- ├── header
+container (raíz)
+ ├── container (encabezado)
  │    └── text
- ├── body
- │    ├── table
- │    │    ├── row
- │    │    └── row
- │    └── qr
- └── footer
+ ├── container (cuerpo)
+ │    ├── table        (Headers/Rows como datos)
+ │    └── image        (QR: imageType "qrcode")
+ └── container (pie)
       └── text
 ```
+
+> Los tipos de nodo válidos son `text`, `container`, `conditional`, `loop`, `table`, `image`. El árbol se compone con un `container` raíz; encabezado, cuerpo y pie son `container` anidados. El QR se representa como `image` con `imageType` `"qrcode"`.
 
 ---
 

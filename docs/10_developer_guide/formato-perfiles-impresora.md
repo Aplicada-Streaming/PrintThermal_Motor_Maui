@@ -18,9 +18,9 @@
 | Clave | Tipo | Descripción |
 |-------|------|-------------|
 | `"supports_qrcode"` | bool | Si la impresora soporta QR nativo (`GS ( k`). |
-| `"supports_tables"` | bool | Si soporta formato tabular. |
+| `"supports_barcode"` | bool | Si soporta códigos de barras nativos (ej. EAN-13 `GS k`). |
 | `"supports_images"` | bool | Si soporta impresión de imágenes bitmap. |
-| `"max_line_width"` | int | Ancho máximo alternativo si difiere del Width. |
+| `"bitmap_max_width_px"` | int | Ancho máximo del bitmap en píxeles (default `384`). Lo leen `EscPosRenderer` y `RasterPreviewRenderer`. |
 
 ### Ejemplo de creación
 
@@ -30,7 +30,7 @@ var profile = new DeviceProfile("58mm", 32, "escpos");
 // Con capabilities
 var profile80 = new DeviceProfile("80mm", 48, "escpos");
 profile80.SetCapability("supports_qrcode", true);
-profile80.SetCapability("supports_tables", true);
+profile80.SetCapability("supports_barcode", true);
 profile80.SetCapability("supports_images", false);
 ```
 
@@ -273,7 +273,7 @@ Medialunas                    6          $300.00
 // Impresora especial de 72mm con soporte QR
 var customProfile = new DeviceProfile("72mm-qr", 42, "escpos");
 customProfile.SetCapability("supports_qrcode", true);
-customProfile.SetCapability("supports_tables", true);
+customProfile.SetCapability("supports_barcode", true);
 customProfile.SetCapability("supports_images", true);
 ```
 
@@ -333,7 +333,7 @@ La propiedad `RenderTarget` del `DeviceProfile` determina qué renderer se usa.
 | `"text"` | `TextRenderer` | `string` | Preview, debug, tests, logs. No tiene formateo visual de bold. |
 | `"escpos"` | `EscPosRenderer` | `byte[]` | Impresión térmica. Genera comandos binarios ESC/POS con estilos nativos. |
 | `"html"` | (custom) | `string` | Si registrás un `HtmlRenderer` propio con `Target => "html"`. |
-| `"pdf"` | (custom) | `byte[]` | Si registrás un `PdfRenderer` propio con una librería PDF externa. |
+| `"pdf"` | `PdfRenderer` (MotorDsl.Maui) | `byte[]` | Provisto por `MotorDsl.Maui` (PdfSharpCore), registrado por `AddMotorDslMaui()`. Custom solo si no usás ese paquete. |
 | Cualquier otro | (custom) | Variable | Lo que retorne tu `IRenderer` registrado con ese `Target`. |
 
 ### Cómo funciona la selección
@@ -350,4 +350,4 @@ Retorna el que tenga Target == "escpos"
 EscPosRenderer.Render(document, profile) → byte[]
 ```
 
-Si no existe un renderer para el target solicitado, el `RendererRegistry` hace fallback a `TextRenderer`.
+Si no existe un renderer para el target solicitado, el `RendererRegistry` hace fallback al renderer `"text"` — pero solo si ese renderer está registrado. Si tampoco existe el target `"text"`, `GetRenderer` devuelve `null` y `DocumentEngine` lanza `InvalidOperationException` (`"No renderer found for target: {target}"`).

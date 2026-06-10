@@ -26,14 +26,16 @@ El sistema permitirá:
 * Resolver datos dinámicos desde fuentes externas o internas.
 * Construir un modelo interno del documento.
 * Ejecutar un motor de layout.
-* Renderizar el documento a múltiples formatos (ESC/POS, texto plano, vista previa UI).
+* Renderizar el documento a múltiples formatos. Salidas reales:
+  * **ESC/POS** (Target `escpos`, `EscPosRenderer`) y **texto plano** (Target `text`, `TextRenderer`) — núcleo (`MotorDsl.Core` + `MotorDsl.Rendering`).
+  * **PDF** (Target `pdf`, `PdfRenderer` / PdfSharpCore), **ESC/POS bitmap** (Target `escpos-bitmap`, `BitmapEscPosRenderer`) y **vista raster PNG** (Target `raster-preview`, `RasterPreviewRenderer`) — vía `MotorDsl.Maui`.
 * Adaptar la salida según perfiles de dispositivos.
 
 Quedan fuera del alcance en esta versión:
 
 * Integración con sistemas de pagos.
 * Gestión de usuarios finales compleja (autenticación avanzada).
-* Renderizado a formatos no definidos (PDF queda como futuro).
+* Renderizado a formatos no definidos (más allá de los targets soportados: `escpos`, `text`, `pdf`, `escpos-bitmap`, `raster-preview`).
 
 ---
 

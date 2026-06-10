@@ -2,7 +2,7 @@
 
 > Acta de infracción de tránsito. Caso real con todas las funcionalidades de la librería.
 
-**Estado:** Documentación de diseño — la app se implementa en Sprint 08.
+**Estado:** Implementado.
 
 ---
 
@@ -17,7 +17,7 @@ Aplicación avanzada que demuestra cómo usar MotorDsl en un escenario real de g
 - Integración con API REST para persistencia
 
 **Nivel:** Avanzado  
-**Ubicación:** `samples/MotorDsl.MultaApp/` *(Sprint 08)*
+**Ubicación:** `samples/MotorDsl.MultaApp/`
 
 ---
 
@@ -27,7 +27,7 @@ Aplicación avanzada que demuestra cómo usar MotorDsl en un escenario real de g
 |----------------------------|----------------------------------------------------------|
 | Preview MAUI               | Vista previa nativa del acta con `RenderLayout()`        |
 | Hex dump ESC/POS           | Visualización de los comandos ESC/POS generados          |
-| PDF                        | Generación y vista previa de PDF via QuestPDF            |
+| PDF                        | Generación y vista previa de PDF via PdfSharpCore        |
 | Exportar a API REST        | Enviar el ticket en Base64 a un endpoint                 |
 | Impresión térmica con logo | Imprimir en impresora BT con imagen rasterizada          |
 | Código QR                  | QR de pago condicional (si permite pago online)          |
@@ -35,7 +35,7 @@ Aplicación avanzada que demuestra cómo usar MotorDsl en un escenario real de g
 
 ---
 
-## 3. Arquitectura Prevista
+## 3. Arquitectura
 
 ### Árbol de archivos
 
@@ -43,13 +43,16 @@ Aplicación avanzada que demuestra cómo usar MotorDsl en un escenario real de g
 samples/MotorDsl.MultaApp/
 ├── MauiProgram.cs                  ← Registro DI + renderers custom
 ├── Templates/
-│   └── MultaDsl.cs                 ← Template DSL + datos hardcodeados
+│   ├── MultaDsl.cs                 ← Template DSL + datos hardcodeados
+│   ├── TicketSimpleDsl.cs          ← Template DSL ticket simple
+│   └── ComprobanteDsl.cs           ← Template DSL comprobante de pago
 ├── Pages/
 │   ├── MainPage.xaml               ← UI con pestañas
 │   └── MainPage.xaml.cs            ← Lógica: preview, hex, pdf, api
 ├── Renderers/
 │   ├── BitmapEscPosRenderer.cs     ← IRenderer: ESC/POS con imágenes
-│   └── PdfRenderer.cs              ← IRenderer: PDF con QuestPDF
+│   ├── PdfRenderer.cs              ← IRenderer: PDF con PdfSharpCore
+│   └── SkiaSharpRasterizer.cs      ← IBitmapRasterizer: base64 → 1-bit
 ├── Services/
 │   └── ThermalPrinterService.cs    ← Conexión BT (reutilizado)
 └── MotorDsl.MultaApp.csproj
@@ -57,10 +60,10 @@ samples/MotorDsl.MultaApp/
 
 ### Dependencias NuGet
 
-| Paquete       | Versión | Uso                                              |
-|---------------|---------|--------------------------------------------------|
-| SkiaSharp     | 3.x     | Rasterizar imágenes base64 → ESC/POS bitmap      |
-| QuestPDF      | 2024.x  | Generar PDF desde `LayoutedDocument`              |
+| Paquete                           | Versión  | Uso                                              |
+|-----------------------------------|----------|--------------------------------------------------|
+| SkiaSharp.Views.Maui.Controls     | 3.119.2  | Rasterizar imágenes base64 → ESC/POS bitmap      |
+| PdfSharpCore                      | 1.3.67   | Generar PDF desde `LayoutedDocument`             |
 
 > **Decisión de arquitectura:** La librería core (`MotorDsl.Core`) NO incluye estas dependencias. Es responsabilidad de la app cliente implementar los renderers que las necesiten, registrándolos como `IRenderer`.
 
@@ -104,7 +107,7 @@ MotorDsl.MultaApp
       {
         "type": "text",
         "text": "ACTA DE INFRACCIÓN",
-        "style": { "align": "center", "bold": true, "size": "large" }
+        "style": { "align": "center", "bold": true }
       },
       {
         "type": "text",
@@ -169,15 +172,12 @@ MotorDsl.MultaApp
       },
       {
         "type": "table",
-        "columns": [
-          { "header": "Art.", "width": 5 },
-          { "header": "Descripción", "width": 14 },
-          { "header": "Pts", "width": 4 },
-          { "header": "Monto", "width": 9 }
+        "headers": ["Art.", "Descripción", "Pts", "Monto"],
+        "rows": [
+          ["42.1", "Exceso velocidad", "4", "15000.00"],
+          ["38.3", "Giro prohibido", "2", "8500.00"]
         ],
-        "source": "infracciones",
-        "fields": ["articulo", "descripcion", "puntos", "monto"],
-        "_comment": "Tabla de infracciones con columnas fijas"
+        "_comment": "Tabla de infracciones: headers + rows (TableNode)"
       },
       {
         "type": "text",
@@ -210,9 +210,10 @@ MotorDsl.MultaApp
               "style": { "align": "center" }
             },
             {
-              "type": "text",
-              "text": "{{qrPagoUrl}}",
-              "style": { "align": "center", "qr": true }
+              "type": "image",
+              "source": "{{qrPagoUrl}}",
+              "imageType": "qrcode",
+              "style": { "align": "center" }
             }
           ]
         },
@@ -257,8 +258,8 @@ MotorDsl.MultaApp
 |---------------|----------|------------------------------------------------|
 | `container`   | 2        | Raíz y grupo del QR condicional                |
 | `text`        | 19       | Encabezados, datos, separadores, pie           |
-| `image`       | 2        | Logo del organismo + firma del agente          |
-| `loop/table`  | 1        | Tabla de infracciones con 4 columnas           |
+| `image`       | 3        | Logo del organismo + QR de pago + firma        |
+| `table`       | 1        | Tabla de infracciones (headers + rows)         |
 | `conditional` | 1        | QR de pago online vs. texto de oficina         |
 
 ---
@@ -344,31 +345,47 @@ public class BitmapEscPosRenderer : IRenderer
 {
     public string Target => "escpos-bitmap";
 
+    // CP437 para texto plano (consistente con EscPosRenderer)
+    private static readonly Encoding Cp437 =
+        CodePagesEncodingProvider.Instance.GetEncoding(437) ?? Encoding.ASCII;
+
     public RenderResult Render(LayoutedDocument document, DeviceProfile profile)
     {
         var ms = new MemoryStream();
+        ms.Write(EscPosCommands.Init);
 
-        foreach (var node in document.Nodes)
+        // El LayoutEngine ya resolvió cada nodo en una entrada de NodeLayoutInfo.
+        // Iteramos ordenando por LineNumber / ColumnNumber.
+        var ordered = document.NodeLayoutInfo.Values
+            .OrderBy(i => i.LineNumber).ThenBy(i => i.ColumnNumber);
+
+        foreach (var info in ordered)
         {
-            switch (node)
+            // Imagen bitmap → ESC/POS GS v 0
+            if (info.DeviceMetadata.TryGetValue("is_bitmap", out var b) && b is true)
             {
-                case LayoutedImageNode img:
-                    // Decodificar base64 → SKBitmap → ESC/POS GS v 0
-                    var bitmap = DecodeBase64ToBitmap(img.Source);
-                    var escposBytes = RasterizeToBitImage(bitmap, profile.Width);
-                    ms.Write(escposBytes);
-                    break;
-
-                case LayoutedTextNode txt:
-                    // Delegar al EscPosRenderer base para texto
-                    var textBytes = EscPosCommands.Text(txt.Text);
-                    ms.Write(textBytes);
-                    break;
-
-                // ... otros nodos
+                var source = info.DeviceMetadata["bitmap_source"]?.ToString() ?? "";
+                var bitmap = DecodeBase64ToBitmap(source);
+                ms.Write(RasterizeToBitImage(bitmap, profile.Width));
+                continue;
             }
+
+            if (string.IsNullOrEmpty(info.WrappedText)) continue;
+
+            // Alineación según LayoutInfo.Alignment
+            ms.Write(info.Alignment switch
+            {
+                "center" => EscPosCommands.AlignCenter,
+                "right"  => EscPosCommands.AlignRight,
+                _        => EscPosCommands.AlignLeft
+            });
+
+            // Texto plano codificado en CP437 (no hay EscPosCommands.Text)
+            ms.Write(Cp437.GetBytes(info.WrappedText));
+            ms.Write(EscPosCommands.LineFeed);
         }
 
+        ms.Write(EscPosCommands.CutFull);
         return new RenderResult(Target, ms.ToArray());
     }
 
@@ -388,11 +405,12 @@ public class BitmapEscPosRenderer : IRenderer
 }
 ```
 
-> **Decisión:** La librería core provee `EscPosCommands` con texto, códigos de barras y QR. La rasterización de imágenes queda del lado del cliente porque requiere SkiaSharp.
+> **Decisión:** La librería core provee `EscPosCommands` con las secuencias ESC/POS (alineación, estilos, corte, QR y código de barras). El texto plano se codifica en **CP437** (`Encoding 437`), igual que hace el `EscPosRenderer` base. La rasterización de imágenes queda del lado del cliente porque requiere SkiaSharp.
 
 ### B) PdfRenderer
 
-Genera PDF usando QuestPDF, mapeando `LayoutedDocument` a elementos QuestPDF.
+Genera PDF usando PdfSharpCore (`PdfDocument` + `XGraphics`), mapeando cada
+entrada de `LayoutedDocument.NodeLayoutInfo` a líneas dibujadas en la página.
 
 ```csharp
 public class PdfRenderer : IRenderer
@@ -401,38 +419,55 @@ public class PdfRenderer : IRenderer
 
     public RenderResult Render(LayoutedDocument document, DeviceProfile profile)
     {
-        var pdfBytes = Document.Create(container =>
+        using var pdf = new PdfDocument();
+        var page = pdf.AddPage();
+        page.Size = PdfSharpCore.PageSize.A4;
+
+        using var gfx = XGraphics.FromPdfPage(page);
+        var font = new XFont("DroidSans", 10, XFontStyle.Regular);
+        double y = 40;
+
+        // El LayoutEngine ya resolvió cada nodo en NodeLayoutInfo.
+        var ordered = document.NodeLayoutInfo.Values
+            .OrderBy(i => i.LineNumber).ThenBy(i => i.ColumnNumber);
+
+        foreach (var info in ordered)
         {
-            container.Page(page =>
+            // Imagen bitmap embebida (base64)
+            if (info.DeviceMetadata.TryGetValue("is_bitmap", out var b) && b is true)
             {
-                page.Size(PageSizes.A4);
-                page.Margin(2, Unit.Centimetre);
+                var source = info.DeviceMetadata["bitmap_source"]?.ToString() ?? "";
+                var imgBytes = Convert.FromBase64String(source.Split(",")[1]);
+                using var ms = new MemoryStream(imgBytes);
+                var img = XImage.FromStream(() => ms);
+                gfx.DrawImage(img, 40, y, img.PixelWidth, img.PixelHeight);
+                y += img.PixelHeight + 4;
+                continue;
+            }
 
-                page.Content().Column(col =>
-                {
-                    foreach (var node in document.Nodes)
-                    {
-                        switch (node)
-                        {
-                            case LayoutedTextNode txt:
-                                var textDesc = col.Item().Text(txt.Text);
-                                if (txt.Bold) textDesc.Bold();
-                                break;
+            if (string.IsNullOrEmpty(info.WrappedText)) continue;
 
-                            case LayoutedImageNode img:
-                                var imgBytes = Convert.FromBase64String(
-                                    img.Source.Split(",")[1]);
-                                col.Item().Image(imgBytes);
-                                break;
+            // Bold según DeviceMetadata["bold"]
+            var lineFont = info.DeviceMetadata.TryGetValue("bold", out var bold) && bold is true
+                ? new XFont("DroidSans", 10, XFontStyle.Bold)
+                : font;
 
-                            // ... otros nodos
-                        }
-                    }
-                });
-            });
-        }).GeneratePdf();
+            // Alineación según LayoutInfo.Alignment
+            var fmt = info.Alignment switch
+            {
+                "center" => XStringFormats.TopCenter,
+                "right"  => XStringFormats.TopRight,
+                _        => XStringFormats.TopLeft
+            };
 
-        return new RenderResult(Target, pdfBytes);
+            gfx.DrawString(info.WrappedText, lineFont, XBrushes.Black,
+                new XRect(40, y, page.Width - 80, 14), fmt);
+            y += 14;
+        }
+
+        using var outMs = new MemoryStream();
+        pdf.Save(outMs, false);
+        return new RenderResult(Target, outMs.ToArray());
     }
 }
 ```
@@ -447,19 +482,20 @@ builder.Services.AddMotorDslEngine()
     {
         p.Add(new DeviceProfile("thermal_58mm", 32, "escpos-bitmap"));
         p.Add(new DeviceProfile("a4-pdf", 80, "pdf"));
-    });
+    })
+    // Renderers custom: el builder los resuelve por DI.
+    // BitmapEscPosRenderer requiere IBitmapRasterizer; PdfRenderer también lo usa.
+    .AddRenderer<PdfRenderer>()
+    .AddRenderer<BitmapEscPosRenderer>();
 
-// Registrar renderers custom DESPUÉS del motor
-builder.Services.AddSingleton<IRendererRegistry>(sp =>
-{
-    var registry = new RendererRegistry();
-    registry.Register(new TextRenderer());           // base
-    registry.Register(new EscPosRenderer());         // base
-    registry.Register(new BitmapEscPosRenderer());   // custom
-    registry.Register(new PdfRenderer());            // custom
-    return registry;
-});
+// El rasterizer que inyecta DI en BitmapEscPosRenderer(IBitmapRasterizer ...)
+builder.Services.AddSingleton<IBitmapRasterizer, SkiaSharpRasterizer>();
 ```
+
+> `TextRenderer` y `EscPosRenderer` ya quedan registrados de fábrica por
+> `AddMotorDslEngine()`. `AddRenderer<T>()` agrega los custom y resuelve sus
+> dependencias (`IBitmapRasterizer`) desde el contenedor — por eso
+> `BitmapEscPosRenderer` **no** tiene constructor sin argumentos.
 
 ---
 

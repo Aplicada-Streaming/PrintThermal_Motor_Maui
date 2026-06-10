@@ -104,22 +104,24 @@ Estructura jerárquica que representa el documento.
 
 #### Nodo base:
 
-- Node (abstracto)
+- DocumentNode (abstracto)
 
 Propiedades comunes:
-- Id
-- Tipo
-- Hijos (Children)
+- Type (Tipo)
+- Children (Hijos)
+- Properties
+- Style
 
-#### Tipos de nodos principales:
+> El `DocumentNode` no expone una propiedad pública `Id`. Los identificadores de layout `node_{n}` los genera el `LayoutEngine` (en `LayoutInfo`), no son propiedad del nodo.
 
-- DocumentNode
+#### Tipos de nodos derivados:
+
 - TextNode
+- ContainerNode
 - ConditionalNode
 - LoopNode
-- VariableNode
-- ContainerNode
-- RenderDirectiveNode
+- TableNode
+- ImageNode
 
 Relaciones:
 - Un nodo puede contener múltiples nodos hijos
@@ -180,10 +182,10 @@ Salida:
 
 ---
 
-### 4.6 Profile Adapter
+### 4.6 Layout Engine (adaptación por perfil)
 
 Responsabilidad:
-- Adaptar el documento según capacidades del dispositivo
+- Adaptar el documento según capacidades del dispositivo (`ILayoutEngine`)
 
 Ejemplos:
 - Tamaño de papel
@@ -192,11 +194,11 @@ Ejemplos:
 - Limitaciones de impresión
 
 Entrada:
-- Modelo evaluado
-- Perfil de impresora
+- `EvaluatedDocument`
+- Perfil de impresora (`DeviceProfile`)
 
 Salida:
-- Modelo adaptado
+- `LayoutedDocument` (documento adaptado al perfil)
 
 ---
 
@@ -205,8 +207,8 @@ Salida:
 ### 5.1 Parser
 
 ```text
-IParser
-- Parse(string dsl) -> DocumentNode
+IDslParser
+- Parse(string dsl) -> DocumentTemplate
 ````
 
 ---
@@ -215,7 +217,7 @@ IParser
 
 ```text
 IEvaluator
-- Evaluate(DocumentNode document, DataContext data) -> EvaluatedDocument
+- Evaluate(DocumentNode ast, object? data) -> EvaluatedDocument
 ```
 
 ---
@@ -224,7 +226,8 @@ IEvaluator
 
 ```text
 IRenderer
-- Render(EvaluatedDocument document) -> RenderOutput
+- Target { get; }
+- Render(LayoutedDocument document, DeviceProfile profile) -> RenderResult
 ```
 
 ---
@@ -233,17 +236,22 @@ IRenderer
 
 ```text
 IDataResolver
-- Resolve(DataReference reference) -> object
+- Resolve(object? data, string path) -> object?
+- ResolveCollection(object? data, string path) -> IEnumerable<object>
 ```
 
 ---
 
-### 5.5 Profile Adapter
+### 5.5 Layout Engine (adaptación por perfil)
 
 ```text
-IProfileAdapter
-- Adapt(EvaluatedDocument document, DeviceProfile profile) -> AdaptedDocument
+ILayoutEngine
+- ApplyLayout(EvaluatedDocument document, DeviceProfile profile) -> LayoutedDocument
 ```
+
+> No existe un `IProfileAdapter`: la adaptación del documento al perfil del
+> dispositivo la realiza `ILayoutEngine.ApplyLayout`, que produce un
+> `LayoutedDocument`.
 
 ---
 

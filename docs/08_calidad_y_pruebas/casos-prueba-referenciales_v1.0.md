@@ -34,6 +34,15 @@ Cada caso incluye:
 - Tipo de prueba sugerido  
 - Notas  
 
+> **Nota importante sobre la notación.** El DSL real del motor es **JSON** (parseado con `System.Text.Json`), no la sintaxis de bloques `Document { ... }` / `Text(...)` / `If(...)` / `ForEach(...)`. Las "Entradas DSL" de los casos de abajo son **pseudo-DSL ilustrativo** para describir la intención de cada escenario de forma legible. El equivalente JSON real usa:
+> - Envoltura raíz: `{ "id", "version", "root" }` (más `"format": "integrated"` en formato integrado).
+> - Nodos con discriminador `"type"`: `text`, `container`, `conditional`, `loop`, `table`, `image`.
+> - Texto: clave `"text"` con placeholders `{{nombre}}` (formato clásico) o clave `"value"` ya resuelta (formato integrado).
+> - Loop: `{ "type": "loop", "source", "itemAlias", "body" }`.
+> - Conditional: `{ "type": "conditional", "expression", "trueBranch", "falseBranch" }`.
+>
+> No existen tokens `Document`, `Text()`, `If()` ni `ForEach()` en el motor.
+
 ---
 
 # 3. Casos de prueba
@@ -385,16 +394,18 @@ Document {
 
 **Descripción:** Cambios de salida según dispositivo.
 
-**DeviceProfiles:**
+**DeviceProfiles (por `RenderTarget`):**
 
-* UI
-* ESC/POS
-* Texto plano
+* `"text"` — texto plano (`string`)
+* `"escpos"` — comandos ESC/POS (`byte[]`)
+* `"pdf"` — documento PDF (`byte[]`, renderer de MAUI)
 
 **Output esperado:**
 
 * Misma entrada DSL
-* Diferente representación según renderer
+* Diferente representación según el `IRenderer` seleccionado por el `RenderTarget` del perfil
+
+> Targets de renderer reales: `text` (TextRenderer), `escpos` (EscPosRenderer); en MAUI además `pdf`, `escpos-bitmap` y `raster-preview`. No existe un renderer con target `"UI"`: la previsualización en pantalla se compone con controles MAUI a partir del `LayoutedDocument`, no es una salida de un `IRenderer`.
 
 ---
 

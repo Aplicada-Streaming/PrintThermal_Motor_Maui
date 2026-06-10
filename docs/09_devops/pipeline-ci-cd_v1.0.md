@@ -114,12 +114,17 @@ v1.2.0
 
 **Objetivo:** compilar las librerías del motor.
 
-**Incluye**
+El conjunto real de librerías publicables son **7 paquetes**:
 
 * MotorDsl.Core
 * MotorDsl.Parser
 * MotorDsl.Rendering
 * MotorDsl.Extensions
+* MotorDsl.Printing.Abstractions
+* MotorDsl.Bluetooth
+* MotorDsl.Maui
+
+> El workflow `cd-nuget.yml` compila/publica las 4 librerías core (Core, Parser, Rendering, Extensions), mientras que el script de publicación canónico `scripts/nuget/publish-motordsl-nuget.bat` empaqueta y publica los 7 paquetes completos.
 
 **Criterio de éxito**
 
@@ -166,18 +171,21 @@ v1.2.0
 
 **Salida**
 
-* Archivo `.nupkg`
+* Un `.nupkg` por paquete (no existe un paquete monolítico `MotorDsl`)
 
 **Comando base**
 
 ```bash
-dotnet pack -c Release
+dotnet pack -c Release -p:PackageVersion=<ver> -p:MotorDslVersion=<ver> -o ./nupkg
 ```
 
-**Ejemplo de nombre**
+**Ejemplo de nombres** (un archivo por PackageId real)
 
 ```text
-MotorDsl.1.2.0.nupkg
+MotorDsl.Core.<ver>.nupkg
+MotorDsl.Parser.<ver>.nupkg
+MotorDsl.Rendering.<ver>.nupkg
+MotorDsl.Extensions.<ver>.nupkg
 ```
 
 ---
@@ -201,10 +209,10 @@ MotorDsl.1.2.0.nupkg
 **Metadatos requeridos en cada csproj:**
 `<PackageId>`, `<Authors>`, `<Description>`, `<PackageTags>`, `<PackageLicenseExpression>`, `<RepositoryUrl>`
 
-**Comando base**
+**Comando base** (un push por paquete; ejemplo con Core)
 
 ```bash
-dotnet nuget push MotorDsl.1.2.0.nupkg --api-key <NUGET_API_KEY> --source https://api.nuget.org/v3/index.json
+dotnet nuget push ./nupkg/MotorDsl.Core.<ver>.nupkg --api-key <NUGET_API_KEY> --source https://api.nuget.org/v3/index.json --skip-duplicate
 ```
 
 ---
@@ -317,11 +325,12 @@ pack:
 publish:
 ```text
 .github/workflows/
-├── ci.yml                   ← tests en cada PR y push (185 tests, ubuntu-latest)
-├── cd-android.yml           ← APK SampleApp + MultaApp (ubuntu-latest)
-├── cd-ios-sampleapp.yml     ← .app.zip SampleApp, iossimulator-arm64 (macos-15)
-├── cd-ios-multaapp.yml      ← .app.zip MultaApp, iossimulator-arm64 (macos-15)
-└── cd-nuget.yml             ← NuGet.org en tags v*, NUGET_API_KEY (ubuntu-latest)
+├── ci.yml                       ← tests en cada PR y push (ubuntu-latest)
+├── cd-android.yml               ← APK SampleApp + MultaApp (ubuntu-latest)
+├── cd-ios-sampleapp.yml         ← .app.zip SampleApp, iossimulator-arm64 (macos-15)
+├── cd-ios-multaapp.yml          ← .app.zip MultaApp, iossimulator-arm64 (macos-15)
+├── cd-ios-multaapp.nuget.yml    ← .app.zip MultaApp (consumo NuGet), iossimulator-arm64 (macos-15)
+└── cd-nuget.yml                 ← NuGet.org en tags v*, NUGET_API_KEY (ubuntu-latest)
 ```
 
 ---
@@ -342,9 +351,9 @@ publish:
 Implementado en v1.0 (actualización):
 
 - ✅ Publicación automática en NuGet.org (cd-nuget.yml con NUGET_API_KEY)
-- ✅ 4 paquetes publicados: MotorDsl.Core, Parser, Rendering, Extensions v1.0.2
-- ✅ Soporte iOS: cd-ios-sampleapp.yml y cd-ios-multaapp.yml
-- ✅ Sample de integración NuGet: MotorDsl.MultaApp.Nuget
+- ✅ Conjunto de 7 paquetes: MotorDsl.Core, Parser, Rendering, Extensions, Printing.Abstractions, Bluetooth, Maui (publicados por `publish-motordsl-nuget.bat` con versión unificada)
+- ✅ Soporte iOS: cd-ios-sampleapp.yml, cd-ios-multaapp.yml y cd-ios-multaapp.nuget.yml
+- ✅ Samples de integración NuGet: MotorDsl.Nuget.MultaApp y MotorDsl.Nuget.Integrated.MultaApp
 
 Planeado para v2.x:
 
@@ -364,6 +373,6 @@ Planeado para v2.x:
 | Versión | Fecha      | Autor  | Descripción                             |
 | ------- | ---------- | ------ | --------------------------------------- |
 | v1.0    | 2026-03-29 | DevOps | Pipeline inicial para publicación NuGet |
-| v1.1    | 2026-04-02 | DevOps | Publicación real en NuGet.org (NUGET_API_KEY), cd-ios-multaapp.yml, MotorDsl.MultaApp.Nuget sample |
+| v1.1    | 2026-04-02 | DevOps | Publicación real en NuGet.org (NUGET_API_KEY), cd-ios-multaapp.yml, samples MotorDsl.Nuget.MultaApp / MotorDsl.Nuget.Integrated.MultaApp |
 
 ---

@@ -51,11 +51,13 @@ Crear la base del proyecto y estructura de librería.
 
 Crear solución .NET 10 con estructura modular:
 
-- MotorDsl.Core  
+- MotorDsl.Core (incluye los namespaces `MotorDsl.Core.Layout` para el layout y `MotorDsl.Core.Contracts` para los contratos del motor)  
 - MotorDsl.Parser  
 - MotorDsl.Rendering  
-- MotorDsl.Layout  
-- MotorDsl.Abstractions  
+- MotorDsl.Extensions  
+- MotorDsl.Printing.Abstractions  
+- MotorDsl.Bluetooth  
+- MotorDsl.Maui  
 - MotorDsl.Tests  
 
 **Criterios de aceptación**
@@ -88,7 +90,7 @@ services.AddMotorDslEngine();
 
 ---
 
-### BT-003 — Definir contratos base en Abstractions
+### BT-003 — Definir contratos base en MotorDsl.Core.Contracts
 
 * **Tipo:** Core
 * **Prioridad:** Alta
@@ -441,6 +443,7 @@ Permitir ampliación del motor.
 
 * **Tipo:** Extensibilidad
 * **Prioridad:** Media
+* **Estado:** No implementado (aspiracional). El registro de renderers es explícito por DI (`AddRenderer<T>()` / factory en `RendererRegistry`); no hay assembly scanning en el motor.
 
 ---
 
@@ -549,7 +552,7 @@ Incorporar una segunda modalidad de entrada al motor donde el JSON ya viene con 
 
 ---
 
-### BT-100 — Agregar campo `Format` a `DocumentTemplate`
+### BT-110 — Agregar campo `Format` a `DocumentTemplate`
 
 - **Tipo:** Core
 - **Prioridad:** Alta
@@ -566,7 +569,7 @@ Agregar la propiedad `string Format` con default `"template"` y constantes `Form
 
 ---
 
-### BT-101 — Nuevo overload `IDocumentEngine.Render(string, DeviceProfile)`
+### BT-111 — Nuevo overload `IDocumentEngine.Render(string, DeviceProfile)`
 
 - **Tipo:** Core
 - **Prioridad:** Alta
@@ -574,7 +577,7 @@ Agregar la propiedad `string Format` con default `"template"` y constantes `Form
 
 **Descripción**
 
-Implementar el overload que ejecuta Parse → Validate → Layout → Render (sin Evaluate). Defensa en profundidad: rechaza JSON con `format` distinto a `"integrated"`.
+Implementar el overload (`MotorDsl.Core.Contracts.IDocumentEngine.Render(string integratedJson, DeviceProfile profile)`) que ejecuta Parse → Validate → Layout → Render (sin Evaluate). Defensa en profundidad: rechaza JSON con `format` distinto a `"integrated"` con el error `"Render(json, profile) only accepts integrated documents..."`.
 
 **Criterio de aceptación**
 
@@ -584,7 +587,7 @@ Implementar el overload que ejecuta Parse → Validate → Layout → Render (si
 
 ---
 
-### BT-102 — Adaptar `DslParser` al formato integrado
+### BT-112 — Adaptar `DslParser` al formato integrado
 
 - **Tipo:** Parser
 - **Prioridad:** Alta
@@ -601,7 +604,7 @@ Detectar `"format": "integrated"` y mapear `value` → `TextNode.Text`. Rechazar
 
 ---
 
-### BT-103 — Adaptar `TemplateValidator` al formato integrado
+### BT-113 — Adaptar `TemplateValidator` al formato integrado
 
 - **Tipo:** Validation
 - **Prioridad:** Alta
@@ -620,7 +623,7 @@ Cuando `format == "integrated"`:
 
 ---
 
-### BT-104 — Tests del formato integrado
+### BT-114 — Tests del formato integrado
 
 - **Tipo:** Testing
 - **Prioridad:** Alta
@@ -641,7 +644,7 @@ Cobertura completa del formato integrado:
 
 ---
 
-### BT-105 — Sample app `MotorDsl.Integrated.MultaApp`
+### BT-115 — Sample app `MotorDsl.Integrated.MultaApp`
 
 - **Tipo:** Sample
 - **Prioridad:** Media
@@ -658,7 +661,7 @@ Clon de `MotorDsl.MultaApp` con un único template en formato integrado (`MultaI
 
 ---
 
-### BT-106 — Documentación del formato integrado
+### BT-116 — Documentación del formato integrado
 
 - **Tipo:** Documentación
 - **Prioridad:** Media
@@ -702,6 +705,6 @@ Una tarea se considera completa cuando:
 | Versión | Fecha      | Autor          | Cambios                                                  |
 | ------- | ---------- | -------------- | -------------------------------------------------------- |
 | 1.0     | 2026-03-28 | Equipo Técnico | Backlog inicial                                          |
-| 1.1     | 2026-05-04 | Equipo Técnico | Épica 12 — Formato de Documento Integrado (BT-100..106)  |
+| 1.1     | 2026-05-04 | Equipo Técnico | Épica 12 — Formato de Documento Integrado (BT-110..116)  |
 
 ---

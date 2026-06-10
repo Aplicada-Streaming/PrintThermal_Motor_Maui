@@ -9,7 +9,7 @@
 
 ## 1. Propósito
 
-Definir el prompt que utilizará el agente (Copilot/LLM) para analizar un documento DSL y clasificarlo según su estructura, tipo de contenido y estrategia de renderizado más adecuada (ESC/POS, UI, texto plano o PDF futuro).
+Definir el prompt que utilizará el agente (Copilot/LLM) para analizar un documento DSL y clasificarlo según su estructura, tipo de contenido y estrategia de renderizado más adecuada (ESC/POS, texto plano, PDF o vista previa pixelada `raster-preview`).
 
 El objetivo es estandarizar la interpretación del documento para asegurar decisiones consistentes en el pipeline de renderizado del motor.
 
@@ -44,11 +44,13 @@ El sistema procesa documentos definidos mediante DSL, los cuales pueden contener
 Estos documentos pueden ser renderizados en distintos targets:
 
 - ESC/POS (impresión térmica)
-- Vista previa UI
 - Texto plano (debug)
-- PDF (futuro)
+- PDF
+- Vista previa pixelada (`raster-preview`, PNG)
 
 La clasificación permite seleccionar el pipeline de renderizado adecuado.
+
+> Nota: la vista previa visual en pantalla no es un renderizador propio. Se obtiene con `LayoutedDocument` (vía `RenderLayout(...)`) consumido por el control MAUI `MauiDocumentPreview`, o con el target `raster-preview` (PNG) consumido por `MauiRasterPreview`.
 
 ---
 
@@ -74,9 +76,9 @@ El agente debe cumplir estrictamente:
 - No incluir explicaciones narrativas.
 - Basarse únicamente en la estructura del documento.
 - Priorizar la compatibilidad con el perfil del dispositivo.
-- Si el documento contiene elementos visuales complejos → preferir UI.
+- Si el documento contiene elementos visuales complejos → preferir `raster-preview` (vista previa pixelada).
 - Si el documento es lineal → preferir ESC/POS.
-- En caso de ambigüedad → utilizar vista previa UI.
+- En caso de ambigüedad → utilizar `raster-preview`.
 
 ---
 
@@ -93,15 +95,17 @@ Debes analizar la estructura del documento y determinar:
 
 Renderizadores disponibles:
 - escpos → documentos lineales, orientados a impresión térmica.
-- ui → documentos con estructura visual compleja o jerárquica.
 - text → documentos simples de depuración o sin formato visual.
-- pdf → documentos estructurados pensados para paginación (futuro).
+- pdf → documentos estructurados con secciones y paginación.
+- raster-preview → vista previa pixelada (PNG) para estructura visual compleja o jerárquica.
 
 Criterios:
 - ESC/POS: listas simples, tickets, comprobantes.
-- UI: tablas complejas, jerarquía profunda, múltiples secciones.
+- RASTER-PREVIEW: tablas complejas, jerarquía profunda, múltiples secciones (previsualización en pantalla).
 - TEXT: logs, debug, salida plana.
 - PDF: documentos formales con secciones y paginación.
+
+Nota: la vista previa visual en pantalla se logra con LayoutedDocument (RenderLayout) o el target raster-preview, no con un renderizador "ui".
 
 Reglas:
 - No inventes renderizadores.
@@ -113,7 +117,7 @@ Reglas:
 Formato de salida obligatorio:
 {
   "tipo_documento": "<ticket|comprobante|reporte|debug|otro>",
-  "renderizador": "<escpos|ui|text|pdf>",
+  "renderizador": "<escpos|text|pdf|raster-preview>",
   "complejidad": "<baja|media|alta>"
 }
 

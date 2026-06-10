@@ -2,7 +2,7 @@
 
 ## 1. Introducción
 
-Este documento describe los wireframes conceptuales de los documentos soportados por el motor de renderizado DSL. Su objetivo es representar visualmente (a nivel lógico) cómo se estructuran los elementos dentro de un documento antes de su renderización final en distintos formatos (ESC/POS, UI, texto plano, PDF futuro).
+Este documento describe los wireframes conceptuales de los documentos soportados por el motor de renderizado DSL. Su objetivo es representar visualmente (a nivel lógico) cómo se estructuran los elementos dentro de un documento antes de su renderización final en distintos formatos (ESC/POS, texto plano, PDF, vista previa `raster-preview`).
 
 Los wireframes no representan estilos gráficos finales, sino la organización jerárquica y distribución de componentes.
 
@@ -219,7 +219,7 @@ Y se utilizan para:
 Dependiendo del perfil del dispositivo:
 
 - ESC/POS → Layout lineal, sin posicionamiento libre
-- UI → Layout flexible con contenedores
+- UI (previsualización en pantalla vía `LayoutedDocument`/`raster-preview`, no un render target propio) → Layout flexible con contenedores
 - PDF → Layout paginado con control preciso
 
 El wireframe se adapta a restricciones como:

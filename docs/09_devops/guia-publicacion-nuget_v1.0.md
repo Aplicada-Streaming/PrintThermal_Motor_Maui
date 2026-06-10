@@ -62,15 +62,18 @@ Existen dos enfoques principales para publicar una librería compuesta por vario
 
 | Opción | Paquetes publicados | El consumidor instala | Complejidad |
 |---|---|---|---|
-| **A) 4 paquetes** (actual) | `Core`, `Parser`, `Rendering`, `Extensions` | `MotorDsl.Extensions` | Alta — 4 versiones sincronizadas |
+| **A) Granular (7 paquetes)** (actual) | `Core`, `Parser`, `Rendering`, `Extensions`, `Printing.Abstractions`, `Bluetooth`, `Maui` | `MotorDsl.Extensions` (motor core) o `MotorDsl.Maui` + `MotorDsl.Bluetooth` (apps MAUI) | Alta — versiones sincronizadas |
 | **B) 1 paquete** | `MotorDsl` (todo junto) | `MotorDsl` | Baja — 1 versión, 1 artefacto |
 | **C) 2 paquetes** | `MotorDsl.Core` (contratos) + `MotorDsl` (todo) | `MotorDsl` | Media — separación contratos/implementación |
 
 ### 2.5 Decisión adoptada
 
-Se adopta la **opción A (4 paquetes)** con `MotorDsl.Extensions` como punto de entrada único recomendado para el consumidor. Esto permite flexibilidad futura (consumo granular) manteniendo una experiencia simple para el caso de uso principal.
+Se adopta el **enfoque granular (7 paquetes)**. El punto de entrada depende del escenario de consumo:
 
-> **Regla para el consumidor:** instalar únicamente `MotorDsl.Extensions`. Este paquete trae todo lo necesario de forma transitiva.
+- **Motor core** (consola, API, Worker, etc.): instalar `MotorDsl.Extensions`, que trae transitivamente `Core`, `Parser` y `Rendering`, y expone `AddMotorDslEngine()`.
+- **Apps MAUI** (impresión térmica Bluetooth + renderers PDF/bitmap/preview): instalar además `MotorDsl.Maui` y `MotorDsl.Bluetooth`. El punto de entrada es `AddMotorDslMaui()` (extiende `MotorDslBuilder`) y `AddBluetoothPrinterTransport()`. `MotorDsl.Maui` arrastra transitivamente `MotorDsl.Printing.Abstractions`.
+
+> **Regla para el consumidor:** para el motor core, instalar `MotorDsl.Extensions`. Para apps MAUI, instalar `MotorDsl.Maui` y `MotorDsl.Bluetooth` (que traen el resto de forma transitiva).
 
 ---
 
@@ -99,12 +102,19 @@ Se adopta la **opción A (4 paquetes)** con `MotorDsl.Extensions` como punto de 
 
 ### 3.2 Tabla de paquetes
 
+Se publican **7 paquetes** NuGet:
+
 | Paquete | Contenido | Dependencias NuGet | Dependencias internas |
 |---|---|---|---|
 | `MotorDsl.Core` | Contratos, modelos, evaluador, layout engine | Ninguna | — |
 | `MotorDsl.Parser` | Parser JSON DSL → `DocumentTemplate` | — | → Core |
-| `MotorDsl.Rendering` | `EscPosRenderer`, `TextRenderer` | `System.Text.Encoding.CodePages` | → Core |
+| `MotorDsl.Rendering` | `EscPosRenderer`, `TextRenderer` | — | → Core |
 | `MotorDsl.Extensions` | DI, fluent API `AddMotorDslEngine()` | `Microsoft.Extensions.DependencyInjection.Abstractions` | → Core, Parser, Rendering |
+| `MotorDsl.Printing.Abstractions` | Contratos de impresión (`IThermalPrinterService`, `IThermalPrinterTransport`, `IDiagnosticsReportProvider`), `AddMotorDslPrinting()` | `Microsoft.Extensions.DependencyInjection.Abstractions` | → Core |
+| `MotorDsl.Bluetooth` | Transport Bluetooth Classic SPP (Android; iOS lanza `PlatformNotSupportedException`), `AddBluetoothPrinterTransport()` | `Microsoft.Extensions.DependencyInjection.Abstractions` | → Printing.Abstractions |
+| `MotorDsl.Maui` | Controles MAUI y renderers (PDF, ESC/POS bitmap, SkiaSharp), `AddMotorDslMaui()` | `SkiaSharp.Views.Maui.Controls`, `PdfSharpCore`, `QRCoder` | → Core, Rendering, Extensions, Printing.Abstractions |
+
+> `MotorDsl.Bluetooth` y `MotorDsl.Maui` multi-targetan `net10.0-android;net10.0-ios`; los demás son `net10.0`.
 
 ### 3.3 ¿Qué instala el consumidor?
 
@@ -112,7 +122,16 @@ Se adopta la **opción A (4 paquetes)** con `MotorDsl.Extensions` como punto de 
 dotnet add package MotorDsl.Extensions --version 1.0.0
 ```
 
-Esto descarga transitivamente: `MotorDsl.Core`, `MotorDsl.Parser`, `MotorDsl.Rendering` y sus dependencias externas.
+Esto descarga transitivamente: `MotorDsl.Core`, `MotorDsl.Parser`, `MotorDsl.Rendering` y sus dependencias externas (consumo del motor core).
+
+Para una **app MAUI** con impresión térmica, instalar además:
+
+```bash
+dotnet add package MotorDsl.Maui
+dotnet add package MotorDsl.Bluetooth
+```
+
+`MotorDsl.Maui` arrastra transitivamente `MotorDsl.Printing.Abstractions` (y `SkiaSharp`, `PdfSharpCore`, `QRCoder`).
 
 ---
 
@@ -125,10 +144,13 @@ Esto descarga transitivamente: `MotorDsl.Core`, `MotorDsl.Parser`, `MotorDsl.Ren
 
 ### 4.2 Cuentas y tokens
 
+El destino productivo real es **NuGet.org**.
+
 | Destino | Cuenta requerida | Token / API Key |
 |---|---|---|
-| **GitHub Packages** | Cuenta GitHub con acceso al repositorio | `GITHUB_TOKEN` (automático en Actions) o PAT con scope `read:packages` / `write:packages` |
-| **NuGet.org** (futuro) | Cuenta en [nuget.org](https://www.nuget.org) | API Key generada en Account → API Keys |
+| **NuGet.org** (destino real) | Cuenta en [nuget.org](https://www.nuget.org) | API Key con scope **Push** para `MotorDsl.*`, expuesta al pipeline como secret `NUGET_API_KEY` |
+
+> Para **consumir** desde nuget.org no se requiere autenticación.
 
 ---
 
@@ -136,89 +158,75 @@ Esto descarga transitivamente: `MotorDsl.Core`, `MotorDsl.Parser`, `MotorDsl.Ren
 
 ### 5.1 Estado actual
 
-Los archivos `.csproj` actuales **no tienen metadata de paquete**. Ejemplo de `MotorDsl.Core.csproj`:
+Los **7 `.csproj` ya tienen metadata de paquete completa**: `PackageId`, `Authors`, `Description`, `PackageTags`, `PackageLicenseExpression`, `RepositoryUrl` y `PackageReadmeFile`. No hace falta agregarla; esta sección documenta los valores reales en uso.
 
-```xml
-<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-  </PropertyGroup>
-</Project>
-```
-
-Faltan propiedades esenciales: `PackageId`, `Description`, `Authors`, `License`, `RepositoryUrl`, etc.
-
-### 5.2 Recomendación: crear `Directory.Build.props`
-
-Crear un archivo `src/Directory.Build.props` para centralizar las propiedades compartidas entre los 4 proyectos empaquetables:
-
-```xml
-<Project>
-  <PropertyGroup>
-    <Authors>UTN - Tecnicatura Universitaria en Programación</Authors>
-    <Company>UTN</Company>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <RepositoryUrl>https://github.com/OWNER/Ejemplos_Maui_PrintThermal_Driver</RepositoryUrl>
-    <RepositoryType>git</RepositoryType>
-    <PackageTags>thermal-printer;escpos;dsl;dotnet;maui</PackageTags>
-    <PackageReadmeFile>README.md</PackageReadmeFile>
-  </PropertyGroup>
-</Project>
-```
-
-Y en cada `.csproj` agregar la propiedad específica:
+Valores compartidos (presentes en cada proyecto empaquetable):
 
 ```xml
 <PropertyGroup>
-  <PackageId>MotorDsl.Core</PackageId>
-  <Description>Contratos, modelos y motor de evaluación del DSL para impresión térmica.</Description>
+  <Authors>Fernando Rafael Filipuzzi</Authors>
+  <PackageLicenseExpression>MIT</PackageLicenseExpression>
+  <RepositoryUrl>https://github.com/Aplicada-Streaming/PrintThermal_Motor_Maui</RepositoryUrl>
+  <PackageTags>maui;thermal;escpos;dsl;printing</PackageTags>
+  <PackageReadmeFile>README.md</PackageReadmeFile>
 </PropertyGroup>
 ```
 
-> **Nota:** estos cambios no están aplicados aún. Son una mejora recomendada antes de la primera publicación formal.
+> **Excepciones de los valores compartidos:**
+> - `MotorDsl.Bluetooth` usa `Authors = UTN FRP TUP Aplicada 2025`.
+> - `MotorDsl.Maui` agrega `;skia;pdf` a `PackageTags` (`maui;thermal;escpos;dsl;printing;skia;pdf`).
 
-### 5.3 Propiedades recomendadas por paquete
+La versión NO se fija en el `.csproj`: se inyecta en build/pack vía `/p:Version`, `-p:PackageVersion` y `-p:MotorDslVersion` (ver [estrategia-versionado_v1.0.md](estrategia-versionado_v1.0.md)).
+
+### 5.2 `PackageId` y `Description` por paquete (valores reales)
 
 | Paquete | `PackageId` | `Description` |
 |---|---|---|
-| Core | `MotorDsl.Core` | Contratos, modelos y motor de evaluación del DSL para impresión térmica |
-| Parser | `MotorDsl.Parser` | Parser JSON DSL que transforma plantillas en DocumentTemplate |
-| Rendering | `MotorDsl.Rendering` | Renderizadores ESC/POS y texto plano para documentos DSL |
+| Core | `MotorDsl.Core` | Motor DSL para documentos e impresión térmica ESC/POS. Parser, Evaluator, LayoutEngine y contratos |
+| Parser | `MotorDsl.Parser` | Parser JSON DSL a DocumentTemplate |
+| Rendering | `MotorDsl.Rendering` | Renderers: EscPosRenderer, TextRenderer |
 | Extensions | `MotorDsl.Extensions` | Integración con DI y fluent API para el Motor DSL de impresión térmica |
+| Printing.Abstractions | `MotorDsl.Printing.Abstractions` | Contratos de impresión térmica e inyección de dependencias |
+| Bluetooth | `MotorDsl.Bluetooth` | Transport Bluetooth Classic SPP (Android). iOS no soportado (lanza `PlatformNotSupportedException`) |
+| Maui | `MotorDsl.Maui` | Controles MAUI y renderers (PDF, ESC/POS bitmap, SkiaSharp) para MotorDsl |
 
 ---
 
 ## 6. Publicación paso a paso
 
-### 6.1 Prueba local con `dotnet pack`
+### 6.1 Publicación local con el script canónico
 
-Generar los `.nupkg` localmente para verificar que el empaquetado funciona:
+El flujo completo de publicación está automatizado en `scripts/nuget/publish-motordsl-nuget.bat`, que empaqueta y publica los **7 paquetes**. Sus pasos: resuelve la API key (`MOTORDSL_NUGET_API_KEY` o prompt), calcula la versión unificada (auto-bump de patch), hace restore + build Release, corre `dotnet test`, empaqueta con `dotnet pack` y hace `dotnet nuget push` a nuget.org con `--skip-duplicate`, y crea/pushea el tag git `v<version>`.
+
+Para una prueba manual de empaquetado de los 7 proyectos:
 
 ```bash
 # Desde la raíz del repositorio
-dotnet build src/MotorDsl.Extensions/MotorDsl.Extensions.csproj -c Release
-
 dotnet pack src/MotorDsl.Core/MotorDsl.Core.csproj -c Release -o ./nupkg
 dotnet pack src/MotorDsl.Parser/MotorDsl.Parser.csproj -c Release -o ./nupkg
 dotnet pack src/MotorDsl.Rendering/MotorDsl.Rendering.csproj -c Release -o ./nupkg
 dotnet pack src/MotorDsl.Extensions/MotorDsl.Extensions.csproj -c Release -o ./nupkg
+dotnet pack src/MotorDsl.Printing.Abstractions/MotorDsl.Printing.Abstractions.csproj -c Release -o ./nupkg
+dotnet pack src/MotorDsl.Bluetooth/MotorDsl.Bluetooth.csproj -c Release -o ./nupkg
+dotnet pack src/MotorDsl.Maui/MotorDsl.Maui.csproj -c Release -o ./nupkg
 ```
 
 Verificar el contenido:
 
 ```bash
 ls ./nupkg/
-# MotorDsl.Core.1.0.0.nupkg
-# MotorDsl.Parser.1.0.0.nupkg
-# MotorDsl.Rendering.1.0.0.nupkg
-# MotorDsl.Extensions.1.0.0.nupkg
+# MotorDsl.Core.<ver>.nupkg
+# MotorDsl.Parser.<ver>.nupkg
+# MotorDsl.Rendering.<ver>.nupkg
+# MotorDsl.Extensions.<ver>.nupkg
+# MotorDsl.Printing.Abstractions.<ver>.nupkg
+# MotorDsl.Bluetooth.<ver>.nupkg
+# MotorDsl.Maui.<ver>.nupkg
 ```
 
-### 6.2 Publicación en GitHub Packages (automática vía CI/CD)
+### 6.2 Publicación en NuGet.org (automática vía CI/CD)
 
-El workflow `cd-nuget.yml` se encarga automáticamente. Los pasos son:
+El workflow `.github/workflows/cd-nuget.yml` se encarga automáticamente. Los pasos son:
 
 #### Paso 1 — Crear un tag de versión
 
@@ -229,30 +237,31 @@ git push origin v1.0.0
 
 #### Paso 2 — El workflow se ejecuta automáticamente
 
-1. Ejecuta los 185 tests
-2. Empaqueta los 4 proyectos con la versión del tag (ej: `1.0.0`)
-3. Publica en `https://nuget.pkg.github.com/<OWNER>/index.json`
-4. Sube los `.nupkg` como artifacts del workflow (retención 30 días)
+1. Ejecuta la suite de tests (`dotnet test`)
+2. Empaqueta los proyectos con la versión del tag (ej: `1.0.0`)
+3. Publica en **NuGet.org** (`https://api.nuget.org/v3/index.json`) usando `secrets.NUGET_API_KEY`
+4. Sube los `.nupkg` como artifacts del workflow
+
+> El step **Publish to NuGet.org** solo corre cuando el ref es un tag `v*` o el run es `workflow_dispatch`.
 
 #### Paso 3 — Verificar
 
-- En GitHub → repositorio → Packages: deben aparecer los 4 paquetes
+- En [nuget.org](https://www.nuget.org) → buscar `MotorDsl.*`: deben aparecer los paquetes publicados
 - En el workflow run → Artifacts: descargar los `.nupkg`
 
-### 6.3 Publicación en GitHub Packages (manual vía workflow_dispatch)
+### 6.3 Publicación manual vía workflow_dispatch
 
 1. Ir a GitHub → Actions → **CD NuGet - Publish MotorDsl**
 2. Click en **Run workflow**
-3. Ingresar versión (ej: `1.0.0`)
-4. El workflow ejecuta los mismos pasos que con un tag
+3. El workflow ejecuta los mismos pasos de pack + push a nuget.org que con un tag
 
-### 6.4 Versiones preview (automáticas)
+### 6.4 Versiones preview (push a `main`)
 
-Cada push a `main` genera paquetes con versión `0.0.0-preview.<run_number>` como artifacts descargables (no se publican al feed). Útil para pruebas internas.
+En un push a `main`, el workflow calcula la versión `0.0.0-preview.<run_number>` y sube los `.nupkg` como artifacts, pero **no los publica** al feed (el step de publish exige tag `v*` o `workflow_dispatch`). Útil para pruebas internas.
 
-### 6.5 Publicación en NuGet.org (opcional / futuro)
+### 6.5 Publicación manual desde la máquina local
 
-Para publicar en el repositorio público de NuGet:
+Como alternativa al workflow, se puede publicar manualmente (o usar el script `scripts/nuget/publish-motordsl-nuget.bat`):
 
 #### Paso 1 — Obtener API Key
 
@@ -260,7 +269,7 @@ Para publicar en el repositorio público de NuGet:
 2. Crear una API Key con scope **Push** para los paquetes `MotorDsl.*`
 3. Copiar la key (solo se muestra una vez)
 
-#### Paso 2 — Publicar manualmente
+#### Paso 2 — Publicar
 
 ```bash
 dotnet nuget push ./nupkg/*.nupkg \
@@ -269,47 +278,28 @@ dotnet nuget push ./nupkg/*.nupkg \
   --skip-duplicate
 ```
 
-#### Paso 3 — (Futuro) Automatizar en CI/CD
-
-Agregar un secret `NUGET_API_KEY` en el repositorio y un step adicional en `cd-nuget.yml`:
-
-```yaml
-- name: Publish to NuGet.org
-  if: startsWith(github.ref, 'refs/tags/v')
-  run: |
-    dotnet nuget push ./nupkg/*.nupkg \
-      --api-key ${{ secrets.NUGET_API_KEY }} \
-      --source https://api.nuget.org/v3/index.json \
-      --skip-duplicate
-```
-
 ---
 
 ## 7. Consumo desde un proyecto .NET
 
-### 7.1 Configurar el feed (solo para GitHub Packages)
+### 7.1 Configurar el feed
 
-GitHub Packages requiere autenticación. Crear un archivo `nuget.config` en la raíz del proyecto consumidor:
+Los paquetes se publican en **nuget.org**, que es el feed por defecto de NuGet: **no se necesita `nuget.config` ni autenticación** para consumirlos.
+
+El `NuGet.config` del repositorio define exactamente dos fuentes (tras `<clear />`):
 
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
 <configuration>
   <packageSources>
-    <add key="nuget.org" value="https://api.nuget.org/v3/index.json" />
-    <add key="github" value="https://nuget.pkg.github.com/OWNER/index.json" />
+    <clear />
+    <add key="local-nupkg" value="./nupkg" />
+    <add key="nuget.org" value="https://api.nuget.org/v3/index.json" protocolVersion="3" />
   </packageSources>
-  <packageSourceCredentials>
-    <github>
-      <add key="Username" value="TU_USUARIO_GITHUB" />
-      <add key="ClearTextPassword" value="TU_PAT_CON_READ_PACKAGES" />
-    </github>
-  </packageSourceCredentials>
 </configuration>
 ```
 
-> **Seguridad:** no commitear tokens en el repositorio. Usar variables de entorno o `dotnet nuget add source` en la máquina local.
-
-Si los paquetes están en **nuget.org**, no se necesita `nuget.config` ni autenticación.
+> La fuente `local-nupkg` (`./nupkg`) sirve para probar paquetes empaquetados localmente antes de publicarlos.
 
 ### 7.2 Instalar el paquete
 
@@ -338,32 +328,51 @@ builder.Services.AddMotorDslEngine();
 
 #### Uso directo (aplicación consola sin DI)
 
+El renderer NO consume el `DocumentTemplate` ni los datos directamente: opera sobre un `LayoutedDocument` (producto del `LayoutEngine`) y un `DeviceProfile`, y devuelve un `RenderResult` cuyo `byte[]` está en `result.Output`. Por eso el armado manual del pipeline es: parsear → evaluar → aplicar layout → renderizar.
+
 ```csharp
 using MotorDsl.Parser;
 using MotorDsl.Rendering;
+using MotorDsl.Core.Evaluators;
+using MotorDsl.Core.Layout;
+using MotorDsl.Core.Models;
 
-// Parsear una plantilla DSL
+var profile = new DeviceProfile("thermal_58mm", 32, "escpos");
+
+// Pipeline manual: Parse → Evaluate → Layout → Render
 var parser = new DslParser();
 var template = parser.Parse(jsonDsl);
 
-// Renderizar a ESC/POS
+var evaluator = new Evaluator();
+var evaluated = evaluator.EvaluateTemplate(template, data);
+
+var layoutEngine = new LayoutEngine();
+LayoutedDocument layouted = layoutEngine.ApplyLayout(evaluated, profile);
+
 var renderer = new EscPosRenderer();
-byte[] output = renderer.Render(template, data);
+RenderResult result = renderer.Render(layouted, profile);
+byte[] output = (byte[])result.Output!;   // byte[] ESC/POS
 ```
+
+> En la práctica conviene usar `IDocumentEngine.Render(jsonDsl, data, profile)` (ver 7.4), que orquesta todo el pipeline internamente.
 
 ### 7.4 Ejemplo mínimo funcional (consola)
 
 ```csharp
 using MotorDsl.Extensions;
+using MotorDsl.Core.Contracts;
+using MotorDsl.Core.Models;
 using Microsoft.Extensions.DependencyInjection;
 
 var services = new ServiceCollection();
 services.AddMotorDslEngine();
 var provider = services.BuildServiceProvider();
 
-// Resolver servicios registrados y usar el motor
-var engine = provider.GetRequiredService<IDslEngine>();
-var result = engine.Process(jsonTemplate, data);
+// Resolver el motor y renderizar (DSL crudo + datos + DeviceProfile)
+var engine = provider.GetRequiredService<IDocumentEngine>();
+var profile = new DeviceProfile("thermal_58mm", 32, "escpos");
+var result = engine.Render(jsonTemplate, data, profile);
+byte[] output = (byte[])result.Output!;   // ESC/POS en RenderResult.Output
 ```
 
 ---
@@ -397,18 +406,18 @@ MAJOR.MINOR.PATCH
 
 ## 9. Troubleshooting
 
-### 9.1 Error de autenticación en GitHub Packages
+### 9.1 Error de autenticación al publicar en NuGet.org
 
 ```
 error: Response status code does not indicate success: 401 (Unauthorized)
 ```
 
-**Solución:** verificar que el PAT tenga el scope `read:packages` (para consumir) o `write:packages` (para publicar). Regenerar si expiró.
+**Solución:** verificar que la API Key (`NUGET_API_KEY`) tenga scope **Push** para los paquetes `MotorDsl.*` y no esté expirada. Regenerar en nuget.org si corresponde.
 
 ### 9.2 Paquete no aparece en el feed
 
-- Los paquetes pueden tardar 1-2 minutos en indexarse
-- Verificar en GitHub → repositorio → **Packages** que el paquete fue publicado
+- Los paquetes pueden tardar unos minutos en indexarse y validarse en nuget.org
+- Verificar en [nuget.org](https://www.nuget.org) que el paquete fue publicado
 - Si usó `--skip-duplicate` y la versión ya existía, no se sobrescribe (diseño intencional)
 
 ### 9.3 Versión duplicada
@@ -453,7 +462,7 @@ Consumir:
 - [estrategia-versionado_v1.0.md](estrategia-versionado_v1.0.md) — Estrategia de versionado SemVer
 - [entornos-deploy_v1.0.md](entornos-deploy_v1.0.md) — Entornos de despliegue
 - [Documentación oficial NuGet](https://learn.microsoft.com/en-us/nuget/) — Microsoft Docs
-- [GitHub Packages con NuGet](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-nuget-registry) — GitHub Docs
+- [Publicar paquetes en NuGet.org](https://learn.microsoft.com/en-us/nuget/nuget-org/publish-a-package) — Microsoft Docs
 
 ---
 

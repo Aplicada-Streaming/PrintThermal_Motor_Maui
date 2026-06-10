@@ -435,14 +435,14 @@ Los estilos se definen en la propiedad `style` de cada nodo.
 | Propiedad | Tipo | Valores | Default | Descripción |
 |-----------|------|---------|---------|-------------|
 | `align` | string | `"left"`, `"center"`, `"right"` | `"left"` | Alineación horizontal del texto dentro del ancho disponible. |
-| `bold` | bool | `true`, `false` | `false` | Texto en negrita. En ESC/POS usa `ESC E 1`. En texto plano no tiene efecto visible. |
+| `bold` | bool | `true`, `false` | `false` | Texto en negrita. En ESC/POS usa `ESC ! 8` (`1B 21 08`). En texto plano no tiene efecto visible. |
 
 ### Cómo se aplican en el layout
 
 - **`align: "left"`** — El texto queda a la izquierda, se rellena con espacios a la derecha.
 - **`align: "center"`** — Se calcula el padding izquierdo: `(anchoDisponible - largoTexto) / 2`.
 - **`align: "right"`** — Se rellena con espacios a la izquierda hasta completar el ancho.
-- **`bold: true`** — En ESC/POS, se emite `ESC E 1` antes del texto y `ESC E 0` después. En texto plano no genera diferencia visible.
+- **`bold: true`** — En ESC/POS, se emite `ESC ! 8` (`StyleBold`, `1B 21 08`) antes del texto y `ESC ! 0` (`StyleNormal`, `1B 21 00`) después. En texto plano no genera diferencia visible.
 
 ### Ejemplo
 
@@ -508,7 +508,7 @@ La propiedad `expression` del nodo `conditional` soporta los siguientes operador
 | `!=` | Distinto de | `"descuento != 0"` |
 | `>` | Mayor que | `"total > 1000"` |
 | `<` | Menor que | `"cantidad < 5"` |
-| `>=` | Mayor o igual | `"items.length >= 1"` |
+| `>=` | Mayor o igual | `"cantidadItems >= 1"` |
 | `<=` | Menor o igual | `"edad <= 65"` |
 
 ### Operadores lógicos
@@ -533,12 +533,14 @@ La propiedad `expression` del nodo `conditional` soporta los siguientes operador
 ```
 
 ```json
-"expression": "items.length > 0 && total > 0"
+"expression": "cantidadItems > 0 && total > 0"
 ```
 
 ```json
 "expression": "formaPago == 'tarjeta' || formaPago == 'transferencia'"
 ```
+
+> **Nota:** el evaluador no soporta propiedades como `.length` / `.Count` sobre colecciones. Los operandos deben ser literales (`'str'`, números, `true`/`false`) o rutas a campos escalares de los datos (ej. `cantidadItems`), no expresiones derivadas de arrays.
 
 ---
 

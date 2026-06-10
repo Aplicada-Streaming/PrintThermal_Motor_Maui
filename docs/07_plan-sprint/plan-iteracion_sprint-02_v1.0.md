@@ -38,7 +38,7 @@ Implementar el **Evaluator del motor**, habilitando:
 | US-08 | Historia | Integrar evaluator con AST generado por el parser | Alta      | 8 pts      |
 | TK-07 | Técnica  | Implementar interfaz IEvaluator                   | Alta      | 3 pts      |
 | TK-08 | Técnica  | Implementar EvaluatedDocument                     | Alta      | 5 pts      |
-| TK-09 | Técnica  | Implementar resolución de variables (DataContext) | Alta      | 5 pts      |
+| TK-09 | Técnica  | Implementar resolución de variables (IDataResolver / DataResolver) | Alta      | 5 pts      |
 | TK-10 | Técnica  | Implementar evaluación de nodos condicionales     | Alta      | 8 pts      |
 | TK-11 | Técnica  | Implementar evaluación de loops (LoopNode)        | Alta      | 8 pts      |
 | TK-12 | Técnica  | Crear tests unitarios para evaluator              | Media     | 5 pts      |
@@ -53,7 +53,7 @@ Implementar el **Evaluator del motor**, habilitando:
 
   * IEvaluator
   * EvaluatedDocument
-  * DataContext
+  * IDataResolver / DataResolver (resuelve el contexto de datos; inyectado en `Evaluator(IDataResolver? dataResolver = null)`)
 * Evaluación de nodos del AST:
 
   * TextNode → resolución de variables
@@ -91,7 +91,7 @@ EvaluatedDocument
 * Iteraciones tipo:
 
   * LOOP sobre listas de datos
-* Contexto de datos dinámico (DataContext)
+* Contexto de datos dinámico (IDataResolver / DataResolver)
 
 ---
 
@@ -150,7 +150,7 @@ Ejemplo:
 
 * Evaluator implementado (IEvaluator)
 * EvaluatedDocument definido
-* DataContext funcional
+* IDataResolver / DataResolver funcional
 * Evaluación de nodos condicionales
 * Evaluación de loops
 * Integración con AST generado en Sprint 01

@@ -91,8 +91,8 @@ El objetivo es traducir el documento a un formato entendible por impresoras tér
 9. Se genera `RenderResult` con:
 
    * `Output` = `byte[]`
-   * `IsSuccessful` = `true`
    * `Target` = `"escpos"`
+   * sin errores → `IsSuccessful` es `true` (propiedad calculada: `true` cuando `Errors` está vacío)
 10. El sistema consumidor puede:
 
     * Enviar `byte[]` a impresora BT (CU-10)
@@ -164,10 +164,14 @@ El objetivo es traducir el documento a un formato entendible por impresoras tér
 ```csharp
 public class RenderResult
 {
-    public bool IsSuccessful { get; set; }
+    public string Target { get; set; }
     public object? Output { get; set; }
-    public string? Target { get; set; }
-    public string[]? Errors { get; set; }
+    public List<string> Warnings { get; set; }
+    public List<string> Errors { get; set; }
+
+    // IsSuccessful es una propiedad calculada de SOLO LECTURA:
+    // es true cuando no hay errores (Errors vacío). No es settable.
+    public bool IsSuccessful => Errors.Count == 0;
 
     /// <summary>
     /// Convierte Output (byte[]) a representación hexadecimal.

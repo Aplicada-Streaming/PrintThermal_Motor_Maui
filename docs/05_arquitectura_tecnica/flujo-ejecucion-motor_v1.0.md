@@ -169,7 +169,7 @@ El motor selecciona el renderer adecuado según el target definido en el DeviceP
 
 * Matching por `Target` en `IRenderer`
 * Resolución desde contenedor DI
-* Fallback opcional
+* Fallback: el `RendererRegistry` recurre al renderer `"text"` cuando no encuentra el target solicitado (si tampoco existe `"text"`, devuelve `null`).
 
 ### Ejemplo
 
@@ -197,9 +197,9 @@ El renderer transforma el DocumentNode en una salida concreta.
 
 Depende del renderer:
 
-* String (HTML / texto)
-* Bytes (impresión / PDF)
-* Objetos UI
+* `string` (texto plano — `TextRenderer`)
+* `byte[]` (ESC/POS — `EscPosRenderer`; PDF — `PdfRenderer`; raster PNG — `RasterPreviewRenderer`; GS v 0 — `BitmapEscPosRenderer`)
+* Objetos UI (`View`)
 * Representaciones intermedias
 
 ---

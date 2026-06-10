@@ -64,8 +64,8 @@ El objetivo es desacoplar completamente la fuente del perfil del motor, permitie
    services.AddMotorDslEngine()
        .AddProfiles(profiles =>
        {
-           profiles.Add(new DeviceProfile { Name = "58mm", Width = 32, RenderTarget = "escpos" });
-           profiles.Add(new DeviceProfile { Name = "80mm", Width = 48, RenderTarget = "escpos" });
+           profiles.Add(new DeviceProfile("58mm", 32, "escpos"));
+           profiles.Add(new DeviceProfile("80mm", 48, "escpos"));
        });
    ```
 
@@ -133,9 +133,10 @@ public interface IDeviceProfileProvider
 {
     DeviceProfile? GetProfile(string name);
     IEnumerable<DeviceProfile> GetAll();
-    void Add(DeviceProfile profile);
 }
 ```
+
+> **Nota:** `Add(DeviceProfile)` **no** forma parte del contrato `IDeviceProfileProvider`; es un método de la implementación `InMemoryDeviceProfileProvider` (ver abajo).
 
 **Implementación default:**
 

@@ -236,9 +236,8 @@ visuales para nodos QR / barcode / bitmap.
 
 ```csharp
 var profile = new DeviceProfile("preview", 32, "text");
-var result = _engine.Render(jsonDsl, profile);
-if (result is RenderResult { LayoutedDocument: { } layouted })
-    DocPreview.Document = layouted;
+var layouted = _engine.RenderLayout(jsonDsl, data, profile);
+DocPreview.Document = layouted;
 ```
 
 > Nota: `MauiDocumentPreview` no produce el `LayoutedDocument` por sí solo —

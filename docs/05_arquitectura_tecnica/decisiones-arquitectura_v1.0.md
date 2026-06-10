@@ -61,11 +61,11 @@ Decisión:
 
 Se adoptan interfaces para desacoplar implementaciones:
 
-* IParser
+* IDslParser
 * IEvaluator
 * IRenderer
 * IDataResolver
-* IProfileAdapter
+* ILayoutEngine
 
 Beneficio:
 
@@ -107,13 +107,18 @@ El EvaluatedDocument se considera una representación derivada:
 
 ### 2. Estructura de proyectos
 
-Se define separación por capas:
+Se define separación por capas (7 paquetes):
 
-* MotorDsl.Core → modelos, AST, interfaces
+* MotorDsl.Core → modelos, AST, interfaces, evaluador (namespace `MotorDsl.Core.Evaluators`), layout y validadores
 * MotorDsl.Parser → parsing DSL
-* MotorDsl.Evaluator → evaluación lógica
-* MotorDsl.Rendering → generación de salida
-* MotorDsl.Extensions → extensibilidad
+* MotorDsl.Rendering → generación de salida (TextRenderer, EscPosRenderer)
+* MotorDsl.Extensions → extensibilidad / DI
+* MotorDsl.Printing.Abstractions → contratos de impresión y orquestador
+* MotorDsl.Bluetooth → transport Bluetooth (Android)
+* MotorDsl.Maui → controles y renderers MAUI (PDF, ESC/POS bitmap, raster)
+
+> No existe un proyecto `MotorDsl.Evaluator`: el Evaluator vive dentro de
+> `MotorDsl.Core` (namespace `MotorDsl.Core.Evaluators`).
 
 ---
 
@@ -125,12 +130,14 @@ Decisión:
 
 Ejemplo conceptual:
 
-* Node (abstracto)
+* DocumentNode (abstracto, base)
 
-  * DocumentNode
   * TextNode
+  * ContainerNode
   * ConditionalNode
   * LoopNode
+  * TableNode
+  * ImageNode
 
 Motivo:
 

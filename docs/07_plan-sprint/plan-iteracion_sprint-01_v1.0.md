@@ -40,7 +40,7 @@ Implementar el **MVP técnico del núcleo del motor**, permitiendo:
 | TK-01 | Técnica  | Crear solución .sln y proyectos (Core, Parser, etc.)         | Alta      | 3 pts      |
 | TK-02 | Técnica  | Implementar clase abstracta Node                             | Alta      | 3 pts      |
 | TK-03 | Técnica  | Implementar nodos básicos (DocumentNode, TextNode)           | Alta      | 5 pts      |
-| TK-04 | Técnica  | Definir interfaces IParser                                   | Alta      | 3 pts      |
+| TK-04 | Técnica  | Definir interfaces IDslParser                                | Alta      | 3 pts      |
 | TK-05 | Técnica  | Implementar parser inicial (DSL simple)                      | Alta      | 8 pts      |
 | TK-06 | Técnica  | Crear estructura de tests unitarios base                     | Media     | 3 pts      |
 
@@ -58,7 +58,7 @@ Implementar el **MVP técnico del núcleo del motor**, permitiendo:
 * Definición del AST (modelo lógico)
 * Definición de interfaces base:
 
-  * IParser
+  * IDslParser
 * Implementación inicial del parser DSL
 * Soporte para:
 

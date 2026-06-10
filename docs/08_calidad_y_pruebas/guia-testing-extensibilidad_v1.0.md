@@ -48,7 +48,11 @@ Valida que las extensiones cumplen interfaces esperadas:
 - Tipos de retorno compatibles.
 
 **Ejemplo:**
-- Un renderizador debe implementar `IRenderer.Render(Document doc, RenderContext ctx)`.
+- Un renderizador debe implementar el contrato `MotorDsl.Core.Contracts.IRenderer`, que exige:
+  - la propiedad `string Target { get; }` (el target que el renderer atiende, ej. `"text"`, `"escpos"`, `"pdf"`),
+  - el método `RenderResult Render(LayoutedDocument document, DeviceProfile profile)`.
+
+  (No existen los tipos `Document` ni `RenderContext`: el renderer recibe un `LayoutedDocument` y un `DeviceProfile`.)
 
 ---
 

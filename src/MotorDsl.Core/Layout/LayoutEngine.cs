@@ -55,6 +55,14 @@ public class LayoutEngine : ILayoutEngine
             DeviceMetadata = new Dictionary<string, object>()
         };
 
+        // Propaga 'bold' del estilo al metadata para que los renderers lo apliquen.
+        // Antes sólo se leía 'align'; por eso los textos con "bold":true salían sin negrita.
+        if (node.Style?.Attributes?.TryGetValue("bold", out var boldVal) == true
+            && boldVal?.ToString()?.ToLower() == "true")
+        {
+            layoutInfo.DeviceMetadata["bold"] = true;
+        }
+
         if (node is TextNode textNode)
         {
             ApplyTextNodeLayout(textNode, layoutInfo, profile);

@@ -14,9 +14,6 @@ public class SkiaSharpRasterizer : IBitmapRasterizer
 {
     public RasterizedImage Rasterize(string source, int widthPixels)
     {
-        System.Console.WriteLine($"[SKIA] rasterize source_len={source?.Length ?? 0}");
-        System.Console.WriteLine($"[SKIA] rasterize source={source?.Substring(0, Math.Min(100, source?.Length ?? 0))}");
-
         var bitmap = DecodeSource(source);
 
         // Scale to target width maintaining aspect ratio
@@ -72,8 +69,23 @@ public class SkiaSharpRasterizer : IBitmapRasterizer
         if (string.IsNullOrEmpty(base64Clean))
             throw new ArgumentException("Fuente de imagen vacía.", nameof(source));
 
-        var bytes = Convert.FromBase64String(base64Clean);
-        return SKBitmap.Decode(bytes)
+        byte[] bytes;
+        try
+        {
+            bytes = Convert.FromBase64String(base64Clean);
+        }
+        catch (FormatException ex)
+        {
+            throw new InvalidOperationException("La fuente de imagen no es base64 válido.", ex);
+        }
+
+        // NOTA: SKBitmap.Decode(byte[]) devuelve null para PNGs perfectamente válidos en
+        // SkiaSharp 3.x (reproducido con un PNG 1x1 estándar). SKImage.FromEncodedData usa la
+        // ruta de codec robusta y decodifica de forma fiable; de ahí lo pasamos a SKBitmap.
+        using var image = SKImage.FromEncodedData(bytes)
             ?? throw new InvalidOperationException("SkiaSharp no pudo decodificar la imagen desde base64.");
+
+        return SKBitmap.FromImage(image)
+            ?? throw new InvalidOperationException("SkiaSharp no pudo convertir la imagen decodificada a bitmap.");
     }
 }

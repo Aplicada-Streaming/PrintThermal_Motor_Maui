@@ -54,10 +54,30 @@ public class BitmapEscPosRenderer : IRenderer
                             ? Math.Min(Convert.ToInt32(w) * 8, maxW)
                             : maxW;
 
-                        System.Console.WriteLine($"[BMP-ESCPOS] source_len={source?.Length ?? 0}");
-                        System.Console.WriteLine($"[BMP-ESCPOS] source={source?.Substring(0, Math.Min(100, source?.Length ?? 0))}");
+                        // Recorte del source para los mensajes (evita volcar todo el base64).
+                        var sourcePreview = source.Length > 40 ? source[..40] + "…" : source;
 
-                        var rasterized = _rasterizer.Rasterize(source, widthPixels);
+                        // Fail-loud, pero con contexto: si la imagen no se puede rasterizar,
+                        // se aborta el ticket con un Error PRECISO (qué imagen y por qué), en
+                        // lugar del genérico "BitmapEscPos rendering failed" del catch externo.
+                        RasterizedImage rasterized;
+                        try
+                        {
+                            rasterized = _rasterizer.Rasterize(source, widthPixels);
+                        }
+                        catch (Exception imgEx)
+                        {
+                            result.AddError($"Image rasterization failed (source='{sourcePreview}'): {imgEx.Message}");
+                            result.Output = Array.Empty<byte>();
+                            return result;
+                        }
+
+                        // Warning (no aborta): la imagen decodificó pero salió toda en blanco
+                        // (típico de placeholders transparentes). El ticket se imprime igual,
+                        // pero avisamos porque esa imagen no se va a ver.
+                        if (rasterized.Bits == null || rasterized.Bits.Length == 0 || rasterized.Bits.All(b => b == 0))
+                            result.AddWarning($"Imagen rasterizada en blanco (posible placeholder transparente): source='{sourcePreview}'");
+
                         buffer.AddRange(EmitGsV0(rasterized));
                         buffer.AddRange(EscPosCommands.LineFeed);
                         continue;
